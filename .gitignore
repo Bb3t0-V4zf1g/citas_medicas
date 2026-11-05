@@ -1,0 +1,17 @@
+# Dependencias de Node.js
+node_modules/
+
+# Base de datos local SQLite
+database/*.db
+database/*.db-shm
+database/*.db-wal
+
+# Archivos de persistencia del evaluador
+.persistencia_U3S3_*.json
+
+# Variables de entorno
+.env
+.env.*
+
+# Archivos temporales
+*.log
