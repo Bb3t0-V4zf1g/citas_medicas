@@ -16,10 +16,10 @@ db.exec(`
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         medico TEXT NOT NULL,
         paciente TEXT NOT NULL,
-        horario_inicio TEXT NOT NULL,
-        horario_fin TEXT NOT NULL,
-        estado INTEGER NOT NULL,
-        fecha_de_registro TEXT NOT NULL
+        horario_inicio DATETIME NOT NULL,
+        horario_fin DATETIME NOT NULL,
+        estado TEXT NOT NULL CHECK (estado IN ('Completado', 'Pendiente', 'Cancelado', 'Pospuesto')) NOT NULL,
+        fecha_de_registro DATETIME NOT NULL
     );
 `);
 
