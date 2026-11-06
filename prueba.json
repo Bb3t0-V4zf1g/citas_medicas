@@ -3,6 +3,7 @@
   "base": "http://127.0.0.1:3000",
   "coleccion": "/citas",
   "campo_id": "id",
+  "openapi": "/openapi.yaml",
   "valido": {
     "medico": "Dra. Ana Torres",
     "paciente": "Maria Lopez",

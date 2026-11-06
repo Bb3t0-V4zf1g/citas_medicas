@@ -1,0 +1,138 @@
+openapi: 3.0.3
+info:
+  title: "API de citas"
+  version: "1.0"
+  description: "Todos los errores responden {\"error\", \"detalles\"}."
+paths:
+  "/citas":
+    get:
+      summary: "Listar citas"
+      responses:
+        "200":
+          description: "Lista"
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Cita"}
+    post:
+      summary: "Crear"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CitaNuevo"}
+      responses:
+        "201":
+          description: "Creado"
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Cita"}
+        "400": {$ref: "#/components/responses/JsonInvalido"}
+        "409": {$ref: "#/components/responses/Conflicto"}
+        "422": {$ref: "#/components/responses/DatosInvalidos"}
+  "/citas/{id}":
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: integer}
+    get:
+      summary: "Consultar uno"
+      responses:
+        "200":
+          description: "Encontrado"
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Cita"}
+        "404": {$ref: "#/components/responses/NoExiste"}
+    put:
+      summary: "Reemplazar completo"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CitaNuevo"}
+      responses:
+        "200":
+          description: "Reemplazado"
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Cita"}
+        "400": {$ref: "#/components/responses/JsonInvalido"}
+        "404": {$ref: "#/components/responses/NoExiste"}
+        "409": {$ref: "#/components/responses/Conflicto"}
+        "422": {$ref: "#/components/responses/DatosInvalidos"}
+    delete:
+      summary: "Borrar"
+      responses:
+        "204":
+          description: "Borrado"
+        "404": {$ref: "#/components/responses/NoExiste"}
+components:
+  schemas:
+    CitaNuevo:
+      type: object
+      required: ["medico", "paciente", "horario_inicio", "horario_fin", "estado"]
+      properties:
+        "medico":
+          type: string
+          minLength: 5
+          maxLength: 100
+          description: "obligatorio, un nombre mínimo de 5 caracteres, si es posible poner todo el nombre y apellidos del médico"
+        "paciente":
+          type: string
+          minLength: 5
+          maxLength: 100
+          description: "obligatorio, un nombre mínimo de 5 caracterés, si es posible poner todo el nombre y apellidos del paciente"
+        "horario_inicio":
+          type: string
+          format: date-time
+          description: "obligatorio, debe ser antes del horario de fin,  y acorde a la disponibilidad del médico, y después de la fecha actul"
+        "horario_fin":
+          type: string
+          format: date-time
+          description: "obligatorio, debe ser después del horario de inicio con una diferencia mínima de 1 hora, acorde a la disponibilidade del médico. Y después de la fecha actul"
+        "estado":
+          type: boolean
+          description: "obligatorio, debe reflejar si la cita sigue en pie, se ha cancelado, se ha completado o se modificó"
+        "fecha_de_registro":
+          type: string
+          format: date-time
+          description: "obligatorio, debe guardar la fecha y hora exacta de cuando se hizo el registro o modificación"
+    Cita:
+      allOf:
+        - $ref: "#/components/schemas/CitaNuevo"
+        - type: object
+          required: ["id","fecha_de_registro"]
+          properties:
+            id: {type: integer}
+    Error:
+      type: object
+      required: ["error", "detalles"]
+      properties:
+        error: {type: string}
+        detalles:
+          type: array
+          items: {type: string}
+  responses:
+    JsonInvalido:
+      description: "El cuerpo no es un JSON válido"
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    DatosInvalidos:
+      description: "Los datos no cumplen las reglas"
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    NoExiste:
+      description: "No existe ese Cita"
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Conflicto:
+      description: "No se puede crear una cita si ya existe otra cita con estado 'activa' para el mismo medico y el mismo horario_inicio, ya que el medico no puede estar en dos lugares a la vez."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}

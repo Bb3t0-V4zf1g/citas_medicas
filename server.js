@@ -1,221 +1,300 @@
 const express = require('express');
+const db = require('./database/conexion');
+
 const app = express();
+
+const path = require('node:path');
+
+// Servir el contrato OpenAPI
+app.get('/openapi.yaml', (req, res) => {
+    res.sendFile(path.join(__dirname, 'openapi.yaml'));
+});
+
+// Servir la documentación Swagger UI
+app.get('/docs', (req, res) => {
+    res.sendFile(path.join(__dirname, 'docs.html'));
+});
 
 app.use(express.json());
 
-// Simulación de base de datos en memoria
-let citas = [
-  {
-    id: 1,
-    medico: 'Dr. Carlos Mendoza',
-    paciente: 'Juan Perez',
-    horario_inicio: '2026-11-10T10:00:00Z',
-    horario_fin: '2026-11-10T10:30:00Z',
-    estado: true, // booleano: true = activa, false = inactiva/cancelada
-    fecha_de_registro: '2026-11-04T08:00:00Z'
-  }
-];
-let nextId = 2;
-
-// Función para validar las reglas acumulando todos los detalles de error
+// Función para validar los datos de una cita
 function validarDatosCita(body, esPut = false) {
-  const errores = [];
-  const { medico, paciente, horario_inicio, horario_fin, estado, fecha_de_registro } = body;
+    const errores = [];
+    const {
+        medico,
+        paciente,
+        horario_inicio,
+        horario_fin,
+        estado,
+        fecha_de_registro
+    } = body;
 
-  // 1. Validar medico[cite: 1]
-  if (!medico || typeof medico !== 'string') {
-    errores.push('El campo medico es obligatorio y debe ser texto');
-  } else if (medico.trim().length < 4) {
-    errores.push('El campo medico debe tener un nombre con un mínimo de 4 caracteres');
-  }
-
-  // 2. Validar paciente[cite: 1]
-  if (!paciente || typeof paciente !== 'string') {
-    errores.push('El campo paciente es obligatorio y debe ser texto');
-  } else if (paciente.trim().length < 4 || paciente.includes('_')) {
-    errores.push('El campo paciente debe ser un nombre válido (mínimo 4 caracteres y sin guiones bajos)');
-  }
-
-  // 3. Validar horario_inicio y horario_fin[cite: 1]
-  let dInicio = null;
-  let dFin = null;
-
-  if (!horario_inicio) {
-    errores.push('El campo horario_inicio es obligatorio');
-  } else {
-    dInicio = new Date(horario_inicio);
-    if (isNaN(dInicio.getTime())) {
-      errores.push('El campo horario_inicio debe ser una fecha válida (formato ISO)');
+    if (!medico || typeof medico !== 'string') {
+        errores.push('El campo medico es obligatorio y debe ser texto');
+    } else if (medico.trim().length < 4) {
+        errores.push('El campo medico debe tener un nombre con un mínimo de 4 caracteres');
     }
-  }
 
-  if (!horario_fin) {
-    errores.push('El campo horario_fin es obligatorio');
-  } else {
-    dFin = new Date(horario_fin);
-    if (isNaN(dFin.getTime())) {
-      errores.push('El campo horario_fin debe ser una fecha válida (formato ISO)');
+    if (!paciente || typeof paciente !== 'string') {
+        errores.push('El campo paciente es obligatorio y debe ser texto');
+    } else if (paciente.trim().length < 4 || paciente.includes('_')) {
+        errores.push('El campo paciente debe ser un nombre válido (mínimo 4 caracteres y sin guiones bajos)');
     }
-  }
 
-  if (dInicio && dFin && !isNaN(dInicio.getTime()) && !isNaN(dFin.getTime())) {
-    if (dInicio >= dFin) {
-      errores.push('horario_inicio debe ser antes de horario_fin');
+    let dInicio = null;
+    let dFin = null;
+
+    if (!horario_inicio) {
+        errores.push('El campo horario_inicio es obligatorio');
+    } else {
+        dInicio = new Date(horario_inicio);
+        if (isNaN(dInicio.getTime())) {
+            errores.push('El campo horario_inicio debe ser una fecha válida (formato ISO)');
+        }
     }
-  }
 
-  // 4. Validar estado[cite: 1]
-  if (typeof estado !== 'boolean') {
-    errores.push('El campo estado es obligatorio y debe ser un valor booleano (true para activa, false para inactiva)');
-  }
-
-  // 5. Validar fecha_de_registro (en caso de enviarse en PUT)[cite: 1]
-  if (esPut && fecha_de_registro) {
-    const dReg = new Date(fecha_de_registro);
-    if (isNaN(dReg.getTime())) {
-      errores.push('El campo fecha_de_registro debe ser una fecha válida');
-    } else if (dReg > new Date()) {
-      errores.push('El campo fecha_de_registro no puede ser una fecha futura');
+    if (!horario_fin) {
+        errores.push('El campo horario_fin es obligatorio');
+    } else {
+        dFin = new Date(horario_fin);
+        if (isNaN(dFin.getTime())) {
+            errores.push('El campo horario_fin debe ser una fecha válida (formato ISO)');
+        }
     }
-  }
 
-  return errores;
+    if (dInicio && dFin &&
+        !isNaN(dInicio.getTime()) &&
+        !isNaN(dFin.getTime())) {
+        if (dInicio >= dFin) {
+            errores.push('horario_inicio debe ser antes de horario_fin');
+        }
+    }
+
+    if (typeof estado !== 'boolean') {
+        errores.push('El campo estado es obligatorio y debe ser un valor booleano (true para activa, false para inactiva)');
+    }
+
+    if (esPut && fecha_de_registro) {
+        const dReg = new Date(fecha_de_registro);
+
+        if (isNaN(dReg.getTime())) {
+            errores.push('El campo fecha_de_registro debe ser una fecha válida');
+        } else if (dReg > new Date()) {
+            errores.push('El campo fecha_de_registro no puede ser una fecha futura');
+        }
+    }
+
+    return errores;
 }
 
-// 1. LISTAR: GET /citas
+// Convierte el valor entero de SQLite a booleano
+function formatearCita(cita) {
+    if (!cita) return null;
+
+    return {
+        ...cita,
+        estado: Boolean(cita.estado)
+    };
+}
+
+// GET /citas
 app.get('/citas', (req, res) => {
-  res.status(200).json(citas);
+    const citas = db.prepare(
+        'SELECT * FROM citas'
+    ).all();
+
+    res.status(200).json(citas.map(formatearCita));
 });
 
-// 2. CONSULTAR: GET /citas/:id
+// GET /citas/:id
 app.get('/citas/:id', (req, res) => {
-  const cita = citas.find(c => c.id == req.params.id);
-  if (!cita) {
-    return res.status(404).json({
-      error: 'Cita no encontrada',
-      detalles: [`No existe ninguna cita registrada con el ID ${req.params.id}`]
-    });
-  }
+    const cita = db.prepare(
+        'SELECT * FROM citas WHERE id = ?'
+    ).get(req.params.id);
 
-  res.status(200).json(cita);
+    if (!cita) {
+        return res.status(404).json({
+            error: 'Cita no encontrada',
+            detalles: [`No existe ninguna cita registrada con el ID ${req.params.id}`]
+        });
+    }
+
+    res.status(200).json(formatearCita(cita));
 });
 
-// 3. CREAR: POST /citas
+// POST /citas
 app.post('/citas', (req, res) => {
-  const errores = validarDatosCita(req.body);
-  if (errores.length > 0) {
-    return res.status(422).json({
-      error: 'Entidad no procesable',
-      detalles: errores
-    });
-  }
+    const errores = validarDatosCita(req.body);
 
-  const { medico, paciente, horario_inicio, horario_fin, estado } = req.body;
+    if (errores.length > 0) {
+        return res.status(422).json({
+            error: 'Entidad no procesable',
+            detalles: errores
+        });
+    }
 
-  // Regla: No crear si ya existe otra cita con estado true (activa) para el mismo médico y horario_inicio
-  if (estado === true) {
-    const conflicto = citas.some(
-      c => c.medico.toLowerCase() === medico.toLowerCase() &&
-           c.horario_inicio === horario_inicio &&
-           c.estado === true
+    const {
+        medico,
+        paciente,
+        horario_inicio,
+        horario_fin,
+        estado
+    } = req.body;
+
+    if (estado === true) {
+        const conflicto = db.prepare(`
+            SELECT id FROM citas
+            WHERE LOWER(medico) = LOWER(?)
+            AND horario_inicio = ?
+            AND estado = 1
+        `).get(medico, horario_inicio);
+
+        if (conflicto) {
+            return res.status(409).json({
+                error: 'Conflicto de horario',
+                detalles: [`El médico "${medico}" ya tiene una cita activa asignada para el horario_inicio "${horario_inicio}"`]
+            });
+        }
+    }
+
+    const fechaRegistro = new Date().toISOString();
+
+    const resultado = db.prepare(`
+        INSERT INTO citas (
+            medico,
+            paciente,
+            horario_inicio,
+            horario_fin,
+            estado,
+            fecha_de_registro
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+        medico,
+        paciente,
+        horario_inicio,
+        horario_fin,
+        estado ? 1 : 0,
+        fechaRegistro
     );
 
-    if (conflicto) {
-      return res.status(409).json({
-        error: 'Conflicto de horario',
-        detalles: [`El médico "${medico}" ya tiene una cita activa asignada para el horario_inicio "${horario_inicio}"`]
-      });
-    }
-  }
+    const nuevaCita = db.prepare(
+        'SELECT * FROM citas WHERE id = ?'
+    ).get(Number(resultado.lastInsertRowid));
 
-  const nuevaCita = {
-    id: nextId++, // El id lo genera automáticamente la API[cite: 1]
-    medico,
-    paciente,
-    horario_inicio,
-    horario_fin,
-    estado,
-    fecha_de_registro: new Date().toISOString() // La API guarda la fecha actual del registro[cite: 1]
-  };
-
-  citas.push(nuevaCita);
-  res.status(201).json(nuevaCita);
+    res.status(201).json(formatearCita(nuevaCita));
 });
 
-// 4. REEMPLAZAR: PUT /citas/:id
+// PUT /citas/:id
 app.put('/citas/:id', (req, res) => {
-  const index = citas.findIndex(c => c.id == req.params.id);
-  if (index === -1) {
-    return res.status(404).json({
-      error: 'Cita no encontrada',
-      detalles: [`No se encontró la cita con ID ${req.params.id} para actualizar`]
-    });
-  }
+    const id = req.params.id;
 
-  const errores = validarDatosCita(req.body, true);
-  if (errores.length > 0) {
-    return res.status(422).json({
-      error: 'Entidad no procesable',
-      detalles: errores
-    });
-  }
+    const citaExistente = db.prepare(
+        'SELECT * FROM citas WHERE id = ?'
+    ).get(id);
 
-  const { medico, paciente, horario_inicio, horario_fin, estado, fecha_de_registro } = req.body;
+    if (!citaExistente) {
+        return res.status(404).json({
+            error: 'Cita no encontrada',
+            detalles: [`No se encontró la cita con ID ${id} para actualizar`]
+        });
+    }
 
-  // Validación de conflicto de horario en citas activas excluyendo la cita actual
-  if (estado === true) {
-    const conflicto = citas.some(
-      c => c.id != req.params.id &&
-           c.medico.toLowerCase() === medico.toLowerCase() &&
-           c.horario_inicio === horario_inicio &&
-           c.estado === true
+    const errores = validarDatosCita(req.body, true);
+
+    if (errores.length > 0) {
+        return res.status(422).json({
+            error: 'Entidad no procesable',
+            detalles: errores
+        });
+    }
+
+    const {
+        medico,
+        paciente,
+        horario_inicio,
+        horario_fin,
+        estado,
+        fecha_de_registro
+    } = req.body;
+
+    if (estado === true) {
+        const conflicto = db.prepare(`
+            SELECT id FROM citas
+            WHERE id <> ?
+            AND LOWER(medico) = LOWER(?)
+            AND horario_inicio = ?
+            AND estado = 1
+        `).get(id, medico, horario_inicio);
+
+        if (conflicto) {
+            return res.status(409).json({
+                error: 'Conflicto de horario',
+                detalles: [`El médico "${medico}" ya tiene otra cita activa asignada para el horario_inicio "${horario_inicio}"`]
+            });
+        }
+    }
+
+    db.prepare(`
+        UPDATE citas
+        SET medico = ?,
+            paciente = ?,
+            horario_inicio = ?,
+            horario_fin = ?,
+            estado = ?,
+            fecha_de_registro = ?
+        WHERE id = ?
+    `).run(
+        medico,
+        paciente,
+        horario_inicio,
+        horario_fin,
+        estado ? 1 : 0,
+        fecha_de_registro || citaExistente.fecha_de_registro,
+        id
     );
 
-    if (conflicto) {
-      return res.status(409).json({
-        error: 'Conflicto de horario',
-        detalles: [`El médico "${medico}" ya tiene otra cita activa asignada para el horario_inicio "${horario_inicio}"`]
-      });
-    }
-  }
+    const citaActualizada = db.prepare(
+        'SELECT * FROM citas WHERE id = ?'
+    ).get(id);
 
-  citas[index] = {
-    id: Number(req.params.id),
-    medico,
-    paciente,
-    horario_inicio,
-    horario_fin,
-    estado,
-    fecha_de_registro: fecha_de_registro || citas[index].fecha_de_registro
-  };
-
-  res.status(200).json(citas[index]);
+    res.status(200).json(formatearCita(citaActualizada));
 });
 
-// 5. BORRAR: DELETE /citas/:id
+// DELETE /citas/:id
 app.delete('/citas/:id', (req, res) => {
-  const index = citas.findIndex(c => c.id == req.params.id);
-  if (index === -1) {
-    return res.status(404).json({
-      error: 'Cita no encontrada',
-      detalles: [`No se puede eliminar la cita porque el ID ${req.params.id} no existe`]
-    });
-  }
+    const id = req.params.id;
 
-  citas.splice(index, 1);
-  res.status(204).send();
+    const cita = db.prepare(
+        'SELECT id FROM citas WHERE id = ?'
+    ).get(id);
+
+    if (!cita) {
+        return res.status(404).json({
+            error: 'Cita no encontrada',
+            detalles: [`No se puede eliminar la cita porque el ID ${id} no existe`]
+        });
+    }
+
+    db.prepare(
+        'DELETE FROM citas WHERE id = ?'
+    ).run(id);
+
+    res.status(204).send();
 });
 
+// Manejo de errores de JSON
 app.use((err, req, res, next) => {
-  if (err.type === 'entity.parse.failed') {
-    return res.status(400).json({
-      error: 'JSON inválido',
-      detalles: ['El cuerpo de la solicitud debe ser JSON válido']
-    });
-  }
-  next(err);
+    if (err.type === 'entity.parse.failed') {
+        return res.status(400).json({
+            error: 'JSON inválido',
+            detalles: ['El cuerpo de la solicitud debe ser JSON válido']
+        });
+    }
+
+    next(err);
 });
 
 app.listen(3000, () => {
-  console.log('API de Citas corriendo en http://localhost:3000');
+    console.log('API de Citas corriendo en http://localhost:3000');
 });
