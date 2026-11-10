@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guía U3S4 · Login, token y roles</title>
+<style>
+:root{--bg:#F4F6FA;--card:#fff;--ink:#141C2B;--soft:#5A6577;--line:#E1E6EE;--teal:#17A398;--teal-t:#E2F5F2;--teal-ink:#0C6259;--amber:#E8A33D;--amber-t:#FCF0DC;--amber-ink:#7A4E0E;--red:#D2553F;--red-t:#FBE9E6;--red-ink:#9C3422;--blue:#2E5BE6;--blue-t:#E8EEFD;--blue-ink:#1F43B0;--code:#121722;--codeink:#E7ECF5}
+@media (prefers-color-scheme:dark){:root{--bg:#0F141D;--card:#171E2A;--ink:#E7ECF5;--soft:#9AA6B8;--line:#2A3344;--teal-t:#123A36;--teal-ink:#7FD4C9;--amber-t:#3A2D16;--amber-ink:#F2C27B;--red-t:#3C1F1A;--red-ink:#F29A87;--blue-t:#1A2647;--blue-ink:#9FB4FF;--code:#0A0E15}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16.5px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.w{max-width:960px;margin:0 auto;padding:24px 16px 60px}
+header{background:var(--code);color:#fff;border-radius:18px;padding:22px 24px;margin-bottom:18px}
+header .k{font:600 13px ui-monospace,Consolas,monospace;letter-spacing:.1em;color:#7FD4C9;text-transform:uppercase}
+header h1{margin:4px 0 6px;font-size:30px;line-height:1.2}
+header p{margin:0;color:#C9D2E0}
+nav.toc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 18px;margin-bottom:18px}
+nav.toc ol{margin:4px 0;padding-left:20px;columns:2;column-gap:28px}
+nav.toc a{color:var(--blue-ink);text-decoration:none}
+section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 22px;margin-bottom:16px}
+h2{margin:0 0 8px;font-size:23px}
+h3{margin:16px 0 6px;font-size:18px}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.9em;background:var(--blue-t);color:var(--blue-ink);padding:1px 5px;border-radius:5px}
+pre{background:var(--code);color:var(--codeink);border-radius:12px;padding:12px 14px;overflow-x:auto;font:13.5px/1.5 ui-monospace,Consolas,monospace;margin:8px 0}
+pre code{background:none;color:inherit;padding:0;font-size:inherit}
+pre .c{color:#7FD4C9}
+.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}
+.flow div{background:var(--blue-t);border-radius:12px;padding:10px;font-size:14.5px;line-height:1.4}
+.flow b{display:block;color:var(--blue-ink)}
+@media (max-width:640px){.flow{grid-template-columns:1fr 1fr}nav.toc ol{columns:1}}
+.note{border-left:5px solid var(--amber);background:var(--amber-t);border-radius:0 12px 12px 0;padding:10px 14px;margin:10px 0}
+.good{border-left:5px solid var(--teal);background:var(--teal-t);border-radius:0 12px 12px 0;padding:10px 14px;margin:10px 0}
+.bad{border-left:5px solid var(--red);background:var(--red-t);border-radius:0 12px 12px 0;padding:10px 14px;margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:13px;color:var(--soft);text-transform:uppercase;letter-spacing:.04em}
+.tabs{margin:8px 0}
+.tabs .tb{display:flex;gap:6px;flex-wrap:wrap}
+.tabs button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:9px;padding:5px 12px;font:600 14px system-ui,sans-serif;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--teal);border-color:var(--teal);color:#fff}
+.tabs .pn{display:none}.tabs .pn.on{display:block}
+.step{display:flex;gap:12px;align-items:flex-start;margin-top:14px}
+.step .n{flex:none;width:32px;height:32px;border-radius:50%;background:var(--teal);color:#fff;display:grid;place-items:center;font-weight:700}
+.step .b{flex:1;min-width:0}
+.step h3{margin:3px 0 4px}
+.q li{margin:4px 0}
+li,td{overflow-wrap:anywhere}
+footer{color:var(--soft);font-size:13.5px;text-align:center;margin-top:20px}
+@media print{body{background:#fff}.tabs .pn{display:block!important}.tabs .tb{display:none}section{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="w">
+<header>
+  <div class="k">Unidad III · Sesión 4 · Guía de estudio</div>
+  <h1>Login, token y roles: paso a paso</h1>
+  <p>Para consultar mientras programan SEC-311 y FEAT-312. Los fragmentos vienen de los ejemplos <code style="background:#1C2433;color:#7FD4C9">api_equipos.py</code>, <code style="background:#1C2433;color:#7FD4C9">api_equipos_express.js</code> y <code style="background:#1C2433;color:#7FD4C9">api_equipos.php</code>, que pasan las 20 pruebas.</p>
+</header>
+
+<nav class="toc" aria-label="Contenido"><b>Contenido</b>
+<ol><li><a href="#flujo">La idea en un dibujo</a></li><li><a href="#glosario">Glosario</a></li><li><a href="#pasos">Los 8 pasos en su proyecto</a></li><li><a href="#probar">Cómo probarlo a mano</a></li><li><a href="#errores">Errores frecuentes</a></li><li><a href="#entendiste">¿Lo entendiste tú?</a></li><li><a href="#fuentes">Fuentes y documentación</a></li></ol></nav>
+
+<section id="flujo">
+<h2>1 · La idea en un dibujo</h2>
+<div class="flow">
+  <div><b>1 · Login</b><code>POST /login</code> con usuario y clave. La única vez que viaja la clave.</div>
+  <div><b>2 · Token</b>El servidor revisa la clave contra el hash y responde un token firmado (30 min).</div>
+  <div><b>3 · Cada petición</b>El cliente manda <code>Authorization: Bearer &lt;token&gt;</code>.</div>
+  <div><b>4 · La API verifica</b>Revisa la firma: ya sabe quién eres y tu rol, sin pedir la clave.</div>
+</div>
+<p>Después, cada petición pasa por <b>cuatro preguntas, en orden</b>. La API se detiene en el primer “no”:</p>
+<table>
+<tr><th>Pregunta</th><th>Si es “no”</th><th>En el código</th></tr>
+<tr><td>1. ¿Trae token?</td><td><b>401</b></td><td><code>usuario_actual()</code></td></tr>
+<tr><td>2. ¿Es auténtico (firma) y vigente (<code>exp</code>)?</td><td><b>401</b></td><td><code>jwt.decode()</code> / <code>jwt.verify()</code></td></tr>
+<tr><td>3. ¿Su rol puede hacer esto?</td><td><b>403</b></td><td><code>solo_encargado()</code></td></tr>
+<tr><td>4. ¿El objeto es suyo?</td><td><b>404</b></td><td><code>WHERE id = ? AND usuario = ?</code></td></tr>
+</table>
+<div class="note"><b>Autenticación</b> = preguntas 1 y 2 (¿quién eres?). <b>Autorización</b> = preguntas 3 y 4 (¿qué puedes hacer?). Si pasa las cuatro, siguen las reglas de siempre: 422, 409, 201…</div>
+</section>
+
+<section id="glosario">
+<h2>2 · Glosario</h2>
+<table>
+<tr><th style="width:24%">Término</th><th>Qué es, en una línea</th></tr>
+<tr><td>Token</td><td>Un texto que el servidor te da al iniciar sesión y que presentas en cada petición, como un gafete.</td></tr>
+<tr><td>JWT</td><td>JSON Web Token: un formato de token con 3 partes en base64 separadas por puntos: cabecera, datos y firma.</td></tr>
+<tr><td>Firma</td><td>La tercera parte del JWT. Se calcula con los datos y una <b>clave secreta</b> del servidor. Si alguien cambia un solo carácter, deja de coincidir.</td></tr>
+<tr><td>Firmado ≠ cifrado</td><td>Cualquiera puede <b>leer</b> los datos de un JWT; nadie puede <b>cambiarlos</b> sin la clave. Nunca metan contraseñas ni datos personales adentro.</td></tr>
+<tr><td><code>sub</code>, <code>rol</code>, <code>exp</code></td><td>Datos del token: quién es, qué rol tiene y a partir de qué hora ya no se acepta.</td></tr>
+<tr><td>Bearer</td><td>“Portador”. El encabezado es <code>Authorization: Bearer &lt;token&gt;</code>: quien porta el token es tratado como su dueño.</td></tr>
+<tr><td>Hash</td><td>Una huella de la contraseña que no se puede revertir. En el login no se “descifra”: se calcula el hash de lo que escribieron y se compara.</td></tr>
+<tr><td>Sal</td><td>Un valor aleatorio que se mezcla con cada contraseña antes del hash: dos usuarios con la misma clave tienen hashes distintos.</td></tr>
+<tr><td>bcrypt</td><td>Un algoritmo de hash lento a propósito (para frenar ataques de fuerza bruta). OWASP lo acepta con costo 10 o más; prefiere Argon2id.</td></tr>
+<tr><td>Rol</td><td>Qué tipo de usuario es (por ejemplo encargado o alumno). Decide qué operaciones puede hacer.</td></tr>
+<tr><td>Dueño</td><td>El usuario al que pertenece un registro. Sale del token, nunca de lo que mande el cliente.</td></tr>
+<tr><td>BOLA (API1:2023)</td><td>Broken Object Level Authorization: ver o cambiar el objeto de otro cambiando su id en la petición. Es el incidente SEC-311.</td></tr>
+</table>
+</section>
+
+<section id="pasos">
+<h2>3 · Los 8 pasos en su proyecto</h2>
+<p>Hagan los pasos en orden y prueben al final de cada uno. Elijan su lenguaje en las pestañas; la elección se mantiene en toda la guía.</p>
+
+<div class="step"><div class="n">1</div><div class="b"><h3>Rama e instalación</h3>
+<div class="tabs"><div class="tb" role="tablist"></div>
+<div class="pn" data-l="py"><pre>git checkout -b login-y-roles
+pip install pyjwt bcrypt          <span class="c"># ojo: pyjwt, NO el paquete "jwt"</span></pre></div>
+<div class="pn" data-l="js"><pre>git checkout -b login-y-roles
+npm install jsonwebtoken bcryptjs</pre></div>
+<div class="pn" data-l="php"><pre>git checkout -b login-y-roles
+<span class="c"># nada que instalar: password_hash() y hash_hmac() ya vienen en PHP</span>
+<span class="c"># (en un proyecto real se usa una librería probada: composer require firebase/php-jwt)</span></pre></div></div>
+</div></div>
+
+<div class="step"><div class="n">2</div><div class="b"><h3>Tabla de usuarios con hash y tres usuarios de prueba</h3>
+<p>Necesitan al menos un administrador y dos usuarios normales (las pruebas 19 y 20 usan dos usuarios distintos).</p>
+<div class="tabs"><div class="tb" role="tablist"></div>
+<div class="pn" data-l="py"><pre>con.execute("""CREATE TABLE IF NOT EXISTS usuarios (
+    usuario TEXT PRIMARY KEY,
+    clave_hash TEXT NOT NULL,          <span class="c">-- el hash, NUNCA la clave</span>
+    rol TEXT NOT NULL)""")
+<span class="c"># al crear un usuario:</span>
+h = bcrypt.hashpw("ana12345".encode(), bcrypt.gensalt(rounds=12)).decode()
+con.execute("INSERT INTO usuarios VALUES (?, ?, ?)", ("ana", h, "alumno"))</pre></div>
+<div class="pn" data-l="js"><pre>db.exec(`CREATE TABLE IF NOT EXISTS usuarios (
+  usuario TEXT PRIMARY KEY, clave_hash TEXT NOT NULL, rol TEXT NOT NULL)`);
+<span class="c">// al crear un usuario:</span>
+db.prepare('INSERT INTO usuarios VALUES (?, ?, ?)')
+  .run('ana', bcrypt.hashSync('ana12345', 12), 'alumno');</pre></div>
+<div class="pn" data-l="php"><pre>$db->exec("CREATE TABLE IF NOT EXISTS usuarios (
+  usuario TEXT PRIMARY KEY, clave_hash TEXT NOT NULL, rol TEXT NOT NULL)");
+<span class="c">// al crear un usuario:</span>
+$db->prepare('INSERT INTO usuarios VALUES (?, ?, ?)')
+   ->execute(['ana', password_hash('ana12345', PASSWORD_BCRYPT, ['cost' => 12]), 'alumno']);</pre></div></div>
+<div class="note">Si su proyecto ya tiene usuarios (Nexus, Gestor de tareas…), agreguen la columna del hash y el rol a esa tabla en lugar de crear otra.</div>
+</div></div>
+
+<div class="step"><div class="n">3</div><div class="b"><h3><code>POST /login</code>: revisar la clave y firmar el token</h3>
+<div class="tabs"><div class="tb" role="tablist"></div>
+<div class="pn" data-l="py"><pre>SECRETO = os.environ.get("JWT_SECRETO", "clave-de-desarrollo-cambiala-en-produccion-2026")
+
+@app.post("/login")
+def login(c: Credenciales):
+    fila = con.execute("SELECT * FROM usuarios WHERE usuario = ?", (c.usuario,)).fetchone()
+    if fila is None or not bcrypt.checkpw(c.clave.encode(), fila["clave_hash"].encode()):
+        raise HTTPException(401, "Usuario o clave incorrectos")   <span class="c"># mismo mensaje en los dos casos</span>
+    ahora = datetime.now(timezone.utc)
+    token = jwt.encode({"sub": fila["usuario"], "rol": fila["rol"],
+                        "iat": ahora, "exp": ahora + timedelta(minutes=30)},
+                       SECRETO, algorithm="HS256")
+    return {"access_token": token, "token_type": "bearer"}</pre></div>
+<div class="pn" data-l="js"><pre>const SECRETO = process.env.JWT_SECRETO || 'clave-de-desarrollo-cambiala-en-produccion-2026';
+
+app.post('/login', (req, res) => {
+  const { usuario, clave } = req.body || {};
+  const fila = db.prepare('SELECT * FROM usuarios WHERE usuario = ?').get(String(usuario ?? ''));
+  if (!fila || typeof clave !== 'string' || !bcrypt.compareSync(clave, fila.clave_hash))
+    return error(res, 401, 'Usuario o clave incorrectos');
+  const token = jwt.sign({ sub: fila.usuario, rol: fila.rol }, SECRETO,
+                         { algorithm: 'HS256', expiresIn: 30 * 60 });
+  res.json({ access_token: token, token_type: 'bearer' });
+});</pre></div>
+<div class="pn" data-l="php"><pre>if ($partes[0] === 'login' &amp;&amp; $metodo === 'POST') {
+  $q = $db->prepare('SELECT * FROM usuarios WHERE usuario = ?');
+  $q->execute([(string)($cuerpo['usuario'] ?? '')]);
+  $u = $q->fetch();
+  if (!$u || !password_verify($cuerpo['clave'] ?? '', $u['clave_hash']))
+    error(401, 'Usuario o clave incorrectos');
+  $token = firmar_jwt(['sub' => $u['usuario'], 'rol' => $u['rol'],
+                       'iat' => time(), 'exp' => time() + 30 * 60]);
+  responder(['access_token' => $token, 'token_type' => 'bearer']);
+}
+<span class="c">// firmar_jwt() y verificar_jwt() están completas en api_equipos.php (20 líneas con hash_hmac)</span></pre></div></div>
+<div class="bad">La respuesta del login <b>nunca</b> incluye la clave ni el hash. La prueba 16 lo revisa.</div>
+</div></div>
+
+<div class="step"><div class="n">4</div><div class="b"><h3>Preguntas 1 y 2: verificar el token (401)</h3>
+<div class="tabs"><div class="tb" role="tablist"></div>
+<div class="pn" data-l="py"><pre>bearer = HTTPBearer(auto_error=False)      <span class="c"># lee "Authorization: Bearer ..."</span>
+
+def usuario_actual(cred = Depends(bearer)) -> dict:
+    if cred is None:
+        raise HTTPException(401, "Falta el token: inicia sesión en POST /login")
+    try:
+        datos = jwt.decode(cred.credentials, SECRETO, algorithms=["HS256"])  <span class="c"># firma y exp</span>
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, "El token no es válido o ya expiró")
+    return {"usuario": datos["sub"], "rol": datos["rol"]}</pre></div>
+<div class="pn" data-l="js"><pre>function usuarioActual(req, res, next) {
+  const [tipo, token] = (req.get('Authorization') || '').split(' ');
+  if (tipo !== 'Bearer' || !token) return error(res, 401, 'Falta el token: inicia sesión en POST /login');
+  try {
+    const datos = jwt.verify(token, SECRETO, { algorithms: ['HS256'] });   <span class="c">// firma y exp</span>
+    req.yo = { usuario: datos.sub, rol: datos.rol };
+    next();
+  } catch (e) { return error(res, 401, 'El token no es válido o ya expiró'); }
+}</pre></div>
+<div class="pn" data-l="php"><pre>function usuario_actual() {
+  $h = $_SERVER['HTTP_AUTHORIZATION'] ?? (getallheaders()['Authorization'] ?? '');
+  if (!preg_match('/^Bearer\s+(\S+)$/', $h, $m)) error(401, 'Falta el token: inicia sesión en POST /login');
+  $d = verificar_jwt($m[1]);                 <span class="c">// revisa firma (hash_equals) y exp</span>
+  if (!is_array($d)) error(401, 'El token no es válido o ya expiró');
+  return ['usuario' => $d['sub'], 'rol' => $d['rol']];
+}</pre></div></div>
+<div class="note">Indiquen siempre <code>algorithms=["HS256"]</code>: si no, algunas librerías aceptan el algoritmo que diga el propio token, y un atacante podría elegir uno sin firma.</div>
+</div></div>
+
+<div class="step"><div class="n">5</div><div class="b"><h3>Pregunta 3: el rol (403) en los endpoints que escriben</h3>
+<div class="tabs"><div class="tb" role="tablist"></div>
+<div class="pn" data-l="py"><pre>def solo_encargado(yo: dict = Depends(usuario_actual)) -> dict:
+    if yo["rol"] != "encargado":
+        raise HTTPException(403, "Tu rol no puede hacer esto")
+    return yo
+
+@app.post("/equipos", status_code=201, responses={**E401, **E403, ...})
+def crear(datos: EquipoNuevo, yo: dict = Depends(solo_encargado)):   <span class="c"># &lt;- aquí</span>
+    ...</pre></div>
+<div class="pn" data-l="js"><pre>function soloEncargado(req, res, next) {
+  if (req.yo.rol !== 'encargado') return error(res, 403, 'Tu rol no puede hacer esto');
+  next();
+}
+app.post('/equipos', usuarioActual, soloEncargado, (req, res) => { ... });   <span class="c">// el orden importa</span></pre></div>
+<div class="pn" data-l="php"><pre>function solo_encargado() {
+  $yo = usuario_actual();                                    <span class="c">// primero 401</span>
+  if ($yo['rol'] !== 'encargado') error(403, 'Tu rol no puede hacer esto');   <span class="c">// luego 403</span>
+  return $yo;
+}
+if ($partes[0] === 'equipos' &amp;&amp; $metodo !== 'GET') { $yo = solo_encargado(); }</pre></div></div>
+</div></div>
+
+<div class="step"><div class="n">6</div><div class="b"><h3>Pregunta 4: el recurso con dueño (SEC-311, 404)</h3>
+<p>Decidan en equipo qué recurso de su proyecto tiene dueño (tareas, comentarios, citas, pedidos, viajes, inscripciones…). Dos reglas:</p>
+<ol><li><b>Al crear</b>, el dueño se toma del token, no del cuerpo.</li><li><b>Al consultar, cambiar o borrar uno</b>, el <code>WHERE</code> incluye al dueño. Si no hay fila: 404.</li></ol>
+<div class="tabs"><div class="tb" role="tablist"></div>
+<div class="pn" data-l="py"><pre><span class="c"># crear: el dueño sale del token</span>
+con.execute("INSERT INTO prestamos (equipo_id, usuario, fecha) VALUES (?, ?, ?)",
+            (datos.equipo_id, yo["usuario"], ahora))
+<span class="c"># consultar uno: id Y dueño</span>
+fila = con.execute("SELECT * FROM prestamos WHERE id = ? AND usuario = ?",
+                   (prestamo_id, yo["usuario"])).fetchone()
+if fila is None:
+    raise HTTPException(404, f"No existe el préstamo {prestamo_id}")</pre></div>
+<div class="pn" data-l="js"><pre><span class="c">// crear: el dueño sale del token (req.yo)</span>
+db.prepare('INSERT INTO prestamos (equipo_id, usuario, fecha) VALUES (?, ?, ?)')
+  .run(equipoId, req.yo.usuario, fecha);
+<span class="c">// consultar uno: id Y dueño</span>
+const p = db.prepare('SELECT * FROM prestamos WHERE id = ? AND usuario = ?')
+            .get(Number(req.params.id), req.yo.usuario);
+if (!p) return error(res, 404, `No existe el préstamo ${req.params.id}`);
+<span class="c">// con Prisma: findFirst({ where: { id, userId: req.yo.id } })</span></pre></div>
+<div class="pn" data-l="php"><pre><span class="c">// crear: el dueño sale del token</span>
+$db->prepare('INSERT INTO prestamos (equipo_id, usuario, fecha) VALUES (?, ?, ?)')
+   ->execute([$e['id'], $yo['usuario'], date('Y-m-d\TH:i:s')]);
+<span class="c">// consultar uno: id Y dueño</span>
+$q = $db->prepare('SELECT * FROM prestamos WHERE id = ? AND usuario = ?');
+$q->execute([(int)$id, $yo['usuario']]);
+if (!$q->fetch()) error(404, "No existe el préstamo $id");</pre></div></div>
+<div class="bad">Si su tabla ya tiene un <code>usuario_id</code> y hoy lo leen del cuerpo, de la URL o de un parámetro, ese es su SEC-311. Cámbienlo por el del token.</div>
+<div class="note">¿Por qué 404 y no 403? Un 403 confirma que el registro existe. Con 404, nadie puede ir probando números para descubrir qué hay.</div>
+</div></div>
+
+<div class="step"><div class="n">7</div><div class="b"><h3>Documentar la seguridad en el contrato</h3>
+<div class="tabs"><div class="tb" role="tablist"></div>
+<div class="pn" data-l="py"><pre><span class="c"># FastAPI lo hace solo al usar HTTPBearer: aparece el botón "Authorize" en /docs.</span>
+<span class="c"># Agreguen 401 y 403 a responses= en los endpoints protegidos:</span>
+E401 = {401: {"model": ErrorRespuesta, "description": "Falta el token, es falso o ya expiró"}}
+E403 = {403: {"model": ErrorRespuesta, "description": "Tu rol no tiene permiso"}}</pre></div>
+<div class="pn" data-l="js"><pre><span class="c"># en openapi.yaml (igual para PHP)</span>
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+paths:
+  /equipos:
+    post:
+      security: [{bearerAuth: []}]
+      responses:
+        "401": {$ref: "#/components/responses/SinSesion"}
+        "403": {$ref: "#/components/responses/SinPermiso"}</pre></div>
+<div class="pn" data-l="php"><pre><span class="c"># en openapi.yaml: igual que en Express (pestaña Node). El archivo completo viene en los ejemplos.</span></pre></div></div>
+</div></div>
+
+<div class="step"><div class="n">8</div><div class="b"><h3><code>prueba.json</code> y las 20 pruebas</h3>
+<p>Agreguen dos secciones. Los nombres de los campos del login son los de <b>su</b> API; el último campo debe ser la clave.</p>
+<pre>"auth": {
+  "login": "/login",
+  "campo_token": "access_token",
+  "admin":   {"usuario": "encargado", "clave": "encargado123"},
+  "usuario": {"usuario": "ana",       "clave": "ana12345"},
+  "otro":    {"usuario": "beto",      "clave": "beto12345"}
+},
+"propio": {
+  "coleccion": "/prestamos",
+  "valido": {"equipo_id": 2}
+}</pre>
+<p><code>python probar_api.py</code> → reinicien la API → <code>python probar_api.py</code>. Las pruebas 1 a 15 se hacen con el token del <code>admin</code>; la 19 usa al <code>usuario</code> para intentar borrar algo del admin; la 20 crea en <code>propio</code> como <code>usuario</code> y lo intenta ver como <code>otro</code>.</p>
+</div></div>
+</section>
+
+<section id="probar">
+<h2>4 · Cómo probarlo a mano</h2>
+<h3>Con curl, en cmd (Símbolo del sistema, no PowerShell)</h3>
+<pre>curl.exe -i -X POST http://127.0.0.1:8000/login -H "Content-Type: application/json" -d "{\"usuario\":\"ana\",\"clave\":\"ana12345\"}"
+
+<span class="c">:: copien el access_token (sin comillas) y guárdenlo en una variable de cmd</span>
+set TOKEN_ANA=eyJhbGciOi...
+
+curl.exe -i http://127.0.0.1:8000/yo -H "Authorization: Bearer %TOKEN_ANA%"
+curl.exe -i -X DELETE http://127.0.0.1:8000/equipos/1 -H "Authorization: Bearer %TOKEN_ANA%"</pre>
+<p>La última debe dar <b>403</b>. Sin el <code>-H "Authorization: …"</code>, <b>401</b>.</p>
+<h3>Con /docs</h3>
+<ol><li>Ejecuten <code>POST /login</code> y copien el <code>access_token</code>.</li><li>Botón <b>Authorize</b> (candado) → peguen el token → Authorize.</li><li>Desde ahí, cada petición de /docs lleva el token.</li></ol>
+<h3>Con las slides</h3>
+<p>Descompriman <code>clase-s4.zip</code> y corran <code>python puente.py</code>. Cada paso explica el comando, qué esperamos y por qué, y lo ejecuta en su computadora.</p>
+</section>
+
+<section id="errores">
+<h2>5 · Errores frecuentes</h2>
+<table>
+<tr><th style="width:38%">Síntoma</th><th>Causa y solución</th></tr>
+<tr><td><code>module 'jwt' has no attribute 'encode'</code></td><td>Instalaron <code>jwt</code> en vez de <code>pyjwt</code>: <code>pip uninstall jwt</code> y <code>pip install pyjwt</code>.</td></tr>
+<tr><td>401 en todo, aunque mandan el token</td><td>Falta <code>Bearer</code> y un espacio, o el token lleva comillas.</td></tr>
+<tr><td>“El token ya expiró”</td><td>Pasaron los 30 minutos de <code>exp</code>. Vuelvan a hacer login.</td></tr>
+<tr><td>Funciona en <code>php -S</code> pero no en Apache</td><td>Apache puede quitar <code>Authorization</code>. Usen <code>getallheaders()</code> como en el ejemplo.</td></tr>
+<tr><td>Prueba 16: “¡la respuesta incluye la clave!”</td><td>El login regresa el usuario completo. Respondan solo el token.</td></tr>
+<tr><td>Prueba 17 falla con 201</td><td>El POST no pide token: falta <code>Depends(...)</code> o el middleware.</td></tr>
+<tr><td>Prueba 19: “¡lo borró!”</td><td>Piden token pero no revisan el rol (pregunta 3).</td></tr>
+<tr><td>Prueba 20: “¡otro usuario lo pudo ver!”</td><td>Falta el dueño en el <code>WHERE</code> (pregunta 4).</td></tr>
+<tr><td>“No pude iniciar sesión como admin”</td><td>Revisen <code>"auth"</code> en <code>prueba.json</code>: la ruta, los campos del login y <code>campo_token</code>.</td></tr>
+</table>
+</section>
+
+<section id="entendiste">
+<h2>6 · ¿Lo entendiste tú o lo entendió la IA?</h2>
+<p>Si usaron IA, al terminar tienen que poder contestar esto <b>señalando su propio código</b>. Son las preguntas del bloque 05 del artefacto y las que hace el revisor del PR.</p>
+<ol class="q">
+<li>¿En qué línea se crea el token y qué datos lleva?</li>
+<li>¿En qué línea se verifica y qué responde si falta?</li>
+<li>¿Dónde está la clave secreta y por qué no va en GitHub?</li>
+<li>En su consulta con dueño, ¿de dónde sale el usuario?</li>
+<li>¿Qué pasa si quitan la línea del rol? ¿Y la del dueño?</li>
+<li>¿Cómo está guardada la contraseña en su tabla?</li>
+</ol>
+<div class="good"><b>Usen la IA como compañero que revisa, no como quien escribe.</b> Pídanle “explícame línea por línea esta función”, “¿qué pasa si quito esta línea?”, “¿por qué aquí es 404 y no 403?”. Si piden “agrégale login a mi API” y pegan el resultado, pasan las pruebas pero no la revisión ni la entrevista.</div>
+</section>
+
+<section id="fuentes">
+<h2>7 · Fuentes y documentación</h2>
+<ul>
+<li>OWASP Foundation. (2023). <i>OWASP API security top 10 – 2023</i>. https://owasp.org/API-Security/editions/2023/en/0x11-t10/</li>
+<li>OWASP Foundation. (s.f.). <i>Password storage cheat sheet</i>. https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html</li>
+<li>Jones, M., Bradley, J. y Sakimura, N. (2015). <i>JSON Web Token (JWT)</i> (RFC 7519). IETF. https://www.rfc-editor.org/rfc/rfc7519</li>
+<li>MDN Web Docs. (s.f.). <i>403 Forbidden</i>. https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/403</li>
+<li>Ramírez, S. (s.f.). <i>Security</i>. FastAPI. https://fastapi.tiangolo.com/tutorial/security/</li>
+<li>Documentación de las librerías: <code>jsonwebtoken</code> y <code>bcryptjs</code> (npmjs.com), <code>password_hash</code> (php.net), PyJWT (pyjwt.readthedocs.io).</li>
+</ul>
+<div class="note">jwt.io sirve para ver qué trae un token, pero <b>solo con tokens de práctica</b>: un token real pegado en una página ajena es una credencial regalada.</div>
+</section>
+
+<footer>Universidad de Colima · Facultad de Telemática · Programación Distribuida · Unidad III, Sesión 4</footer>
+</div>
+<script>
+(function(){
+  var NOM={py:'Python · FastAPI',js:'Node · Express',php:'PHP'},pref='py';
+  try{pref=localStorage.getItem('u3s4_leng')||'py'}catch(e){}
+  var grupos=document.querySelectorAll('.tabs');
+  function poner(l){pref=l;try{localStorage.setItem('u3s4_leng',l)}catch(e){}
+    grupos.forEach(function(g){g.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-selected',b.dataset.l===l)});
+      g.querySelectorAll('.pn').forEach(function(p){p.classList.toggle('on',p.dataset.l===l)})})}
+  grupos.forEach(function(g){var tb=g.querySelector('.tb');
+    g.querySelectorAll('.pn').forEach(function(p){var b=document.createElement('button');b.type='button';b.setAttribute('role','tab');b.dataset.l=p.dataset.l;b.textContent=NOM[p.dataset.l];b.onclick=function(){poner(p.dataset.l)};tb.appendChild(b)})});
+  poner(pref);
+})();
+</script>
+</body>
+</html>

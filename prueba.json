@@ -1,6 +1,6 @@
 
 {
-  "matricula": "20212702",
+  "matricula": "20204735",
   "base": "http://127.0.0.1:3000",
   "coleccion": "/citas",
   "campo_id": "id",
@@ -11,7 +11,7 @@
     "paciente": "Maria Lopez",
     "horario_inicio": "2026-11-12T10:00:00Z",
     "horario_fin": "2026-11-12T10:30:00Z",
-    "estado": true
+    "estado": "Pendiente"
   },
 
   "invalido": {
@@ -29,7 +29,7 @@
     "paciente": "Maria Lopez",
     "horario_inicio": "2026-11-12T11:00:00Z",
     "horario_fin": "2026-11-12T11:30:00Z",
-    "estado": true
+    "estado": "Completado"
   },
 
   "id_inexistente": "999999",
