@@ -70,8 +70,8 @@ function validarDatosCita(body, esPut = false) {
         }
     }
 
-    if (typeof estado !== 'boolean') {
-        errores.push('El campo estado es obligatorio y debe ser un valor booleano (true para activa, false para inactiva)');
+    if (!estado || !['Completado', 'Pendiente', 'Cancelado', 'Pospuesto'].includes(estado)) {
+        errores.push('El campo estado es obligatorio y debe ser uno de los valores válidos: Completado, Pendiente, Cancelado, Pospuesto');
     }
 
     if (esPut && fecha_de_registro) {
@@ -83,18 +83,7 @@ function validarDatosCita(body, esPut = false) {
             errores.push('El campo fecha_de_registro no puede ser una fecha futura');
         }
     }
-
     return errores;
-}
-
-// Convierte el valor entero de SQLite a booleano
-function formatearCita(cita) {
-    if (!cita) return null;
-
-    return {
-        ...cita,
-        estado: Boolean(cita.estado)
-    };
 }
 
 // GET /citas
@@ -103,11 +92,12 @@ app.get('/citas', (req, res) => {
         'SELECT * FROM citas'
     ).all();
 
-    res.status(200).json(citas.map(formatearCita));
+    res.status(200).json(citas);
 });
 
 // GET /citas/:id
-app.get('/citas/:id', (req, res) => {
+app.get('/citas/:id',
+  (req, res) => {
     const cita = db.prepare(
         'SELECT * FROM citas WHERE id = ?'
     ).get(req.params.id);
@@ -119,7 +109,7 @@ app.get('/citas/:id', (req, res) => {
         });
     }
 
-    res.status(200).json(formatearCita(cita));
+    res.status(200).json(cita);
 });
 
 // POST /citas
@@ -141,13 +131,14 @@ app.post('/citas', (req, res) => {
         estado
     } = req.body;
 
-    if (estado === true) {
+    if (estado === 'Pendiente') {
         const conflicto = db.prepare(`
             SELECT id FROM citas
             WHERE LOWER(medico) = LOWER(?)
-            AND horario_inicio = ?
-            AND estado = 1
-        `).get(medico, horario_inicio);
+            AND datetime(horario_inicio) < datetime(?)
+            AND datetime(horario_fin) > datetime(?)
+            AND estado = ?
+        `).get(medico, horario_fin, horario_inicio, 'Pendiente');
 
         if (conflicto) {
             return res.status(409).json({
@@ -174,7 +165,7 @@ app.post('/citas', (req, res) => {
         paciente,
         horario_inicio,
         horario_fin,
-        estado ? 1 : 0,
+        estado,
         fechaRegistro
     );
 
@@ -182,7 +173,7 @@ app.post('/citas', (req, res) => {
         'SELECT * FROM citas WHERE id = ?'
     ).get(Number(resultado.lastInsertRowid));
 
-    res.status(201).json(formatearCita(nuevaCita));
+    res.status(201).json(nuevaCita);
 });
 
 // PUT /citas/:id
@@ -218,14 +209,15 @@ app.put('/citas/:id', (req, res) => {
         fecha_de_registro
     } = req.body;
 
-    if (estado === true) {
+    if (estado === 'Pendiente') {
         const conflicto = db.prepare(`
             SELECT id FROM citas
             WHERE id <> ?
             AND LOWER(medico) = LOWER(?)
-            AND horario_inicio = ?
-            AND estado = 1
-        `).get(id, medico, horario_inicio);
+            AND datetime(horario_inicio) < datetime(?)
+            AND datetime(horario_fin) > datetime(?)
+            AND estado = 'Pendiente'
+        `).get(id, medico, horario_fin, horario_inicio);
 
         if (conflicto) {
             return res.status(409).json({
@@ -249,7 +241,7 @@ app.put('/citas/:id', (req, res) => {
         paciente,
         horario_inicio,
         horario_fin,
-        estado ? 1 : 0,
+        estado,
         fecha_de_registro || citaExistente.fecha_de_registro,
         id
     );
@@ -258,7 +250,7 @@ app.put('/citas/:id', (req, res) => {
         'SELECT * FROM citas WHERE id = ?'
     ).get(id);
 
-    res.status(200).json(formatearCita(citaActualizada));
+    res.status(200).json(citaActualizada);
 });
 
 // DELETE /citas/:id
