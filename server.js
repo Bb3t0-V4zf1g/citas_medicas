@@ -1,9 +1,102 @@
 const express = require('express');
 const db = require('./database/conexion');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 
 const path = require('node:path');
+
+app.use(express.json());
+
+const SECRETO = process.env.JWT_SECRETO;
+
+if (!SECRETO) {
+    throw new Error('Falta configurar la variable de entorno JWT_SECRETO');
+}
+
+// Endpoint para el login
+app.post('/login', (req, res) => {
+    const { usuario, clave } = req.body || {};
+
+    if (typeof usuario !== 'string' || typeof clave !== 'string' || !usuario.trim() || !clave) {
+        return res.status(422).json({
+            error: 'Datos inválidos',
+            detalles: ['Se requiere un usuario y una clave']
+        });
+    }
+
+    const cuenta = db.prepare('SELECT usuario, clave_hash, rol FROM usuarios WHERE usuario = ?').get(usuario.trim());
+
+    if (!cuenta || !bcrypt.compareSync(clave, cuenta.clave_hash)) {
+        return res.status(401).json({
+            error: 'Credenciales incorrectas',
+            detalles: ['Usuario o clave incorrectos']
+        });
+    }
+
+    const token = jwt.sign(
+        { sub: cuenta.usuario, rol: cuenta.rol },
+        SECRETO,
+        { algorithm: 'HS256', expiresIn: '30m' }
+    );
+
+    return res.status(200).json({
+        access_token: token,
+        token_type: 'bearer',
+    });
+
+});
+
+//middleware para verificar el token y obtener el usuario actual
+function usuarioActual(req, res, next) {
+    const autorizacion = req.headers.authorization;
+
+    if (!autorizacion || !autorizacion.startsWith('Bearer ')) {
+        return res.status(401).json({
+            error: 'No autorizado',
+            detalles: ['Se requiere un token Bearer']
+        });
+    }
+
+    const token = autorizacion.substring(7);
+
+    try {
+        const datos = jwt.verify(token, SECRETO, {
+            algorithms: ['HS256']
+        });
+
+        req.yo = {
+            usuario: datos.sub,
+            rol: datos.rol
+        };
+
+        next();
+    } catch (error) {
+        return res.status(401).json({
+            error: 'Token inválido',
+            detalles: ['El token es inválido o ha expirado']
+        });
+    }
+}
+
+function esAdmin(req) {
+    return req.yo.rol === 'admin';
+}
+
+function buscarCita(id, req) {
+    if (esAdmin(req)) {
+        return db.prepare(`
+            SELECT * FROM citas
+            WHERE id = ?
+        `).get(id);
+    }
+
+    return db.prepare(`
+        SELECT * FROM citas
+        WHERE id = ? AND usuario_id = ?
+    `).get(id, req.yo.usuario);
+}
 
 // Servir el contrato OpenAPI
 app.get('/openapi.yaml', (req, res) => {
@@ -98,32 +191,38 @@ function formatearCita(cita) {
 }
 
 // GET /citas
-app.get('/citas', (req, res) => {
-    const citas = db.prepare(
-        'SELECT * FROM citas'
-    ).all();
+app.get('/citas', usuarioActual, (req, res) => {
+    let citas;
 
-    res.status(200).json(citas.map(formatearCita));
+    if (esAdmin(req)) {
+        citas = db.prepare(`
+            SELECT * FROM citas
+        `).all();
+    } else {
+        citas = db.prepare(`
+            SELECT * FROM citas
+            WHERE usuario_id = ?
+        `).all(req.yo.usuario);
+    }
+
+    return res.status(200).json(citas);
 });
 
 // GET /citas/:id
-app.get('/citas/:id', (req, res) => {
-    const cita = db.prepare(
-        'SELECT * FROM citas WHERE id = ?'
-    ).get(req.params.id);
+app.get('/citas/:id', usuarioActual, (req, res) => {
+    const cita = buscarCita(req.params.id, req);
 
     if (!cita) {
         return res.status(404).json({
-            error: 'Cita no encontrada',
-            detalles: [`No existe ninguna cita registrada con el ID ${req.params.id}`]
+            error: 'Cita no encontrada'
         });
     }
 
-    res.status(200).json(formatearCita(cita));
+    return res.status(200).json(formatearCita(cita));
 });
 
 // POST /citas
-app.post('/citas', (req, res) => {
+app.post('/citas', usuarioActual, (req, res) => {
     const errores = validarDatosCita(req.body);
 
     if (errores.length > 0) {
@@ -166,16 +265,18 @@ app.post('/citas', (req, res) => {
             horario_inicio,
             horario_fin,
             estado,
-            fecha_de_registro
+            fecha_de_registro,
+            usuario_id
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
         medico,
         paciente,
         horario_inicio,
         horario_fin,
         estado ? 1 : 0,
-        fechaRegistro
+        fechaRegistro,
+        req.yo.usuario
     );
 
     const nuevaCita = db.prepare(
@@ -186,12 +287,11 @@ app.post('/citas', (req, res) => {
 });
 
 // PUT /citas/:id
-app.put('/citas/:id', (req, res) => {
+app.put('/citas/:id', usuarioActual, (req, res) => {
     const id = req.params.id;
 
-    const citaExistente = db.prepare(
-        'SELECT * FROM citas WHERE id = ?'
-    ).get(id);
+    // Buscar la cita verificando también su propietario
+    const citaExistente = buscarCita(id, req);
 
     if (!citaExistente) {
         return res.status(404).json({
@@ -235,53 +335,83 @@ app.put('/citas/:id', (req, res) => {
         }
     }
 
-    db.prepare(`
-        UPDATE citas
-        SET medico = ?,
-            paciente = ?,
-            horario_inicio = ?,
-            horario_fin = ?,
-            estado = ?,
-            fecha_de_registro = ?
-        WHERE id = ?
-    `).run(
-        medico,
-        paciente,
-        horario_inicio,
-        horario_fin,
-        estado ? 1 : 0,
-        fecha_de_registro || citaExistente.fecha_de_registro,
-        id
-    );
+    if (esAdmin(req)) {
+        db.prepare(`
+            UPDATE citas
+            SET medico = ?,
+                paciente = ?,
+                horario_inicio = ?,
+                horario_fin = ?,
+                estado = ?,
+                fecha_de_registro = ?
+            WHERE id = ?
+        `).run(
+            medico,
+            paciente,
+            horario_inicio,
+            horario_fin,
+            estado ? 1 : 0,
+            fecha_de_registro || citaExistente.fecha_de_registro,
+            id
+        );
+    } else {
+        db.prepare(`
+            UPDATE citas
+            SET medico = ?,
+                paciente = ?,
+                horario_inicio = ?,
+                horario_fin = ?,
+                estado = ?,
+                fecha_de_registro = ?
+            WHERE id = ? AND usuario_id = ?
+        `).run(
+            medico,
+            paciente,
+            horario_inicio,
+            horario_fin,
+            estado ? 1 : 0,
+            fecha_de_registro || citaExistente.fecha_de_registro,
+            id,
+            req.yo.usuario
+        );
+    }
 
     const citaActualizada = db.prepare(
         'SELECT * FROM citas WHERE id = ?'
     ).get(id);
 
-    res.status(200).json(formatearCita(citaActualizada));
+    return res.status(200).json(formatearCita(citaActualizada));
 });
 
 // DELETE /citas/:id
-app.delete('/citas/:id', (req, res) => {
+app.delete('/citas/:id', usuarioActual, (req, res) => {
     const id = req.params.id;
 
-    const cita = db.prepare(
-        'SELECT id FROM citas WHERE id = ?'
-    ).get(id);
+    // Verificar existencia y propietario
+    const cita = buscarCita(id, req);
 
     if (!cita) {
         return res.status(404).json({
             error: 'Cita no encontrada',
-            detalles: [`No se puede eliminar la cita porque el ID ${id} no existe`]
+            detalles: [`No se puede eliminar la cita porque el ID ${id} no existe o no te pertenece`]
         });
     }
 
-    db.prepare(
-        'DELETE FROM citas WHERE id = ?'
-    ).run(id);
+    if (esAdmin(req)) {
+        db.prepare(`
+            DELETE FROM citas
+            WHERE id = ?
+        `).run(id);
+    } else {
+        db.prepare(`
+            DELETE FROM citas
+            WHERE id = ? AND usuario_id = ?
+        `).run(id, req.yo.usuario);
+    }
 
-    res.status(204).send();
+    return res.status(204).send();
 });
+
 
 // Manejo de errores de JSON
 app.use((err, req, res, next) => {

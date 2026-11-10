@@ -2,11 +2,51 @@ openapi: 3.0.3
 info:
   title: "API de citas"
   version: "1.0"
-  description: "Todos los errores responden {\"error\", \"detalles\"}."
+  description: 'Todos los errores responden {"error", "detalles"}.'
 paths:
+  "/login":
+    post:
+      summary: "Iniciar sesión"
+      description: "Autentica un usuario y devuelve un token JWT."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - usuario
+                - clave
+              properties:
+                usuario:
+                  type: string
+                  example: admin
+                clave:
+                  type: string
+                  format: password
+                  example: admin12345
+      responses:
+        "200":
+          description: "Inicio de sesión correcto"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                    example: Bearer
+        "401":
+          description: "Credenciales incorrectas"
+        "422":
+          description: "Datos de inicio de sesión inválidos"
   "/citas":
     get:
       summary: "Listar citas"
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: "Lista"
@@ -14,66 +54,92 @@ paths:
             application/json:
               schema:
                 type: array
-                items: {$ref: "#/components/schemas/Cita"}
+                items: { $ref: "#/components/schemas/Cita" }
+        "401":
+          description: "Token ausente, inválido o expirado"
+        "403":
+          description: "Usuario autenticado sin permisos para realizar la operación"
     post:
       summary: "Crear"
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: "#/components/schemas/CitaNuevo"}
+            schema: { $ref: "#/components/schemas/CitaNuevo" }
       responses:
         "201":
           description: "Creado"
           content:
             application/json:
-              schema: {$ref: "#/components/schemas/Cita"}
-        "400": {$ref: "#/components/responses/JsonInvalido"}
-        "409": {$ref: "#/components/responses/Conflicto"}
-        "422": {$ref: "#/components/responses/DatosInvalidos"}
+              schema: { $ref: "#/components/schemas/Cita" }
+        "400": { $ref: "#/components/responses/JsonInvalido" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/NoPermitido" }
+        "409": { $ref: "#/components/responses/Conflicto" }
+        "422": { $ref: "#/components/responses/DatosInvalidos" }
   "/citas/{id}":
     parameters:
       - name: id
         in: path
         required: true
-        schema: {type: integer}
+        schema: { type: integer }
     get:
       summary: "Consultar uno"
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: "Encontrado"
           content:
             application/json:
-              schema: {$ref: "#/components/schemas/Cita"}
-        "404": {$ref: "#/components/responses/NoExiste"}
+              schema: { $ref: "#/components/schemas/Cita" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/NoPermitido" }
+        "404": { $ref: "#/components/responses/NoExiste" }
     put:
       summary: "Reemplazar completo"
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: "#/components/schemas/CitaNuevo"}
+            schema: { $ref: "#/components/schemas/CitaNuevo" }
       responses:
         "200":
           description: "Reemplazado"
           content:
             application/json:
-              schema: {$ref: "#/components/schemas/Cita"}
-        "400": {$ref: "#/components/responses/JsonInvalido"}
-        "404": {$ref: "#/components/responses/NoExiste"}
-        "409": {$ref: "#/components/responses/Conflicto"}
-        "422": {$ref: "#/components/responses/DatosInvalidos"}
+              schema: { $ref: "#/components/schemas/Cita" }
+        "400": { $ref: "#/components/responses/JsonInvalido" }
+        "404": { $ref: "#/components/responses/NoExiste" }
+        "403": { $ref: "#/components/responses/NoPermitido" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "409": { $ref: "#/components/responses/Conflicto" }
+        "422": { $ref: "#/components/responses/DatosInvalidos" }
     delete:
       summary: "Borrar"
+      security:
+        - bearerAuth: []
       responses:
         "204":
           description: "Borrado"
-        "404": {$ref: "#/components/responses/NoExiste"}
+        "404": { $ref: "#/components/responses/NoExiste" }
+        "403": { $ref: "#/components/responses/NoPermitido" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     CitaNuevo:
       type: object
-      required: ["medico", "paciente", "horario_inicio", "horario_fin", "estado"]
+      required:
+        ["medico", "paciente", "horario_inicio", "horario_fin", "estado"]
       properties:
         "medico":
           type: string
@@ -104,35 +170,51 @@ components:
       allOf:
         - $ref: "#/components/schemas/CitaNuevo"
         - type: object
-          required: ["id","fecha_de_registro"]
+          required: ["id", "fecha_de_registro"]
           properties:
-            id: {type: integer}
+            id:  
+              type: integer 
+            usuario_id: 
+              type: string
+              description: "Usuario propietario de la cita"
     Error:
       type: object
       required: ["error", "detalles"]
       properties:
-        error: {type: string}
+        error: { type: string }
         detalles:
           type: array
-          items: {type: string}
+          items: { type: string }
   responses:
     JsonInvalido:
       description: "El cuerpo no es un JSON válido"
       content:
         application/json:
-          schema: {$ref: "#/components/schemas/Error"}
+          schema: { $ref: "#/components/schemas/Error" }
     DatosInvalidos:
       description: "Los datos no cumplen las reglas"
       content:
         application/json:
-          schema: {$ref: "#/components/schemas/Error"}
+          schema: { $ref: "#/components/schemas/Error" }
     NoExiste:
       description: "No existe ese Cita"
       content:
         application/json:
-          schema: {$ref: "#/components/schemas/Error"}
+          schema: { $ref: "#/components/schemas/Error" }
     Conflicto:
       description: "No se puede crear una cita si ya existe otra cita con estado 'activa' para el mismo medico y el mismo horario_inicio, ya que el medico no puede estar en dos lugares a la vez."
       content:
         application/json:
-          schema: {$ref: "#/components/schemas/Error"}
+          schema: { $ref: "#/components/schemas/Error" }
+    NoAutorizado:
+      description: "No se proporcionó un token válido o el token expiró"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NoPermitido:
+      description: "El usuario autenticado no tiene permiso para realizar esta operación"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
