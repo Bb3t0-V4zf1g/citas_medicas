@@ -1,9 +1,11 @@
+
 {
   "matricula": "20204735",
   "base": "http://127.0.0.1:3000",
   "coleccion": "/citas",
   "campo_id": "id",
   "openapi": "/openapi.yaml",
+
   "valido": {
     "medico": "Dra. Ana Torres",
     "paciente": "Maria Lopez",
@@ -11,6 +13,7 @@
     "horario_fin": "2026-11-12T10:30:00Z",
     "estado": "Pendiente"
   },
+
   "invalido": {
     "medico": "",
     "paciente": "Juan_Perez",
@@ -18,7 +21,9 @@
     "horario_fin": "no-es-fecha",
     "estado": "activa"
   },
+
   "metodo_cambio": "PUT",
+
   "cambio": {
     "medico": "Dra. Ana Torres",
     "paciente": "Maria Lopez",
@@ -26,6 +31,35 @@
     "horario_fin": "2026-11-12T11:30:00Z",
     "estado": "Completado"
   },
+
   "id_inexistente": "999999",
-  "encabezados": {}
+  "encabezados": {},
+
+  "auth": {
+    "login": "/login",
+    "campo_token": "access_token",
+    "admin": {
+      "usuario": "admin",
+      "clave": "admin12345"
+    },
+    "usuario": {
+      "usuario": "ana",
+      "clave": "ana12345"
+    },
+    "otro": {
+      "usuario": "beto",
+      "clave": "beto12345"
+    }
+  },
+
+  "propio": {
+    "coleccion": "/citas",
+    "valido": {
+      "medico": "Dra. Laura Gomez",
+      "paciente": "Pedro Ramirez",
+      "horario_inicio": "2026-11-20T10:00:00Z",
+      "horario_fin": "2026-11-20T10:30:00Z",
+      "estado": true
+    }
+  }
 }
