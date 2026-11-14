@@ -1,5 +1,5 @@
 {
-  "matricula": "20212702",
+  "matricula": "20204735",
   "base": "http://127.0.0.1:3000",
   "coleccion": "/citas",
   "campo_id": "id",
@@ -7,9 +7,9 @@
   "valido": {
   "medico": "Dra. Ana Torres",
   "paciente": "Maria Lopez",
-  "horario_inicio": "2026-11-12T12:00:00Z",
-  "horario_fin": "2026-11-12T12:30:00Z",
-  "estado": true
+  "horario_inicio": "2026-11-14T12:00:00Z",
+  "horario_fin": "2026-11-14T12:30:00Z",
+  "estado": "Pendiente"
 },
   "invalido": {
     "medico": "",
@@ -22,9 +22,9 @@
   "cambio": {
     "medico": "Dra. Ana Torres",
     "paciente": "Maria Lopez",
-    "horario_inicio": "2026-11-12T11:00:00Z",
-    "horario_fin": "2026-11-12T11:30:00Z",
-    "estado": false
+    "horario_inicio": "2026-11-14T11:00:00Z",
+    "horario_fin": "2026-11-14T11:30:00Z",
+    "estado": "Cancelado"
   },
   "id_inexistente": "999999",
   "encabezados": {},
@@ -51,7 +51,7 @@
       "paciente": "Pedro Ramirez",
       "horario_inicio": "2026-11-20T10:00:00Z",
       "horario_fin": "2026-11-20T10:30:00Z",
-      "estado": true
+      "estado": "Pendiente"
     }
   },
   "externo": {

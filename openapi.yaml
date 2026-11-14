@@ -160,8 +160,9 @@ components:
           format: date-time
           description: "obligatorio, debe ser después del horario de inicio con una diferencia mínima de 1 hora, acorde a la disponibilidade del médico. Y después de la fecha actul"
         "estado":
-          type: boolean
-          description: "obligatorio, debe reflejar si la cita sigue en pie, se ha cancelado, se ha completado o se modificó"
+          type: string
+          enum: ["Completado", "Pendiente", "Cancelado", "Pospuesto"]
+          description: "obligatorio, debe ser uno de los estados permitidos"
         "fecha_de_registro":
           type: string
           format: date-time

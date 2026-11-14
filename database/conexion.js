@@ -14,7 +14,7 @@ const db = new DatabaseSync(rutaDB);
 db.exec(`PRAGMA foreign_keys = ON;`);
 
 db.exec(`CREATE TABLE IF NOT EXISTS usuarios (
-    usuarioq TEXT PRIMARY KEY,
+    usuario TEXT PRIMARY KEY,
     clave_hash TEXT NOT NULL,
     rol TEXT NOT NULL
         CHECK (rol IN ('admin', 'usuario'))
@@ -40,7 +40,7 @@ const tieneUsuarioId = columnas.some(columna => columna.name === 'usuario_id');
 if (!tieneUsuarioId) {
     db.exec(`
         ALTER TABLE citas
-        ADD COLUMN usuario_id TEXT,
+        ADD COLUMN usuario_id TEXT
         REFERENCES usuarios(usuario);
     `);
 }

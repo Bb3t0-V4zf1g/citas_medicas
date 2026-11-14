@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('./database/conexion');
+require('./database/usuarios');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -227,8 +228,8 @@ function validarDatosCita(body, esPut = false) {
         }
     }
 
-    if (typeof estado !== 'boolean') {
-        errores.push('El campo estado es obligatorio y debe ser un valor booleano (true para activa, false para inactiva)');
+    if (!['Completado', 'Pendiente', 'Cancelado', 'Pospuesto'].includes(estado)) {
+        errores.push('El campo estado debe ser uno de estos valores: Completado, Pendiente, Cancelado o Pospuesto');
     }
 
     if (esPut && fecha_de_registro) {
@@ -244,14 +245,10 @@ function validarDatosCita(body, esPut = false) {
     return errores;
 }
 
-// Convierte el valor entero de SQLite a booleano
 function formatearCita(cita) {
     if (!cita) return null;
 
-    return {
-        ...cita,
-        estado: Boolean(cita.estado)
-    };
+    return { ...cita };
 }
 
 // GET /citas
@@ -304,12 +301,12 @@ app.post('/citas', usuarioActual, (req, res) => {
         estado
     } = req.body;
 
-    if (estado === true) {
+    if (estado === 'Pendiente') {
         const conflicto = db.prepare(`
             SELECT id FROM citas
             WHERE LOWER(medico) = LOWER(?)
             AND horario_inicio = ?
-            AND estado = 1
+            AND estado = 'Pendiente'
         `).get(medico, horario_inicio);
 
         if (conflicto) {
@@ -338,7 +335,7 @@ app.post('/citas', usuarioActual, (req, res) => {
         paciente,
         horario_inicio,
         horario_fin,
-        estado ? 1 : 0,
+        estado,
         fechaRegistro,
         req.yo.usuario
     );
@@ -382,13 +379,13 @@ app.put('/citas/:id', usuarioActual, (req, res) => {
         fecha_de_registro
     } = req.body;
 
-    if (estado === true) {
+    if (estado === 'Pendiente') {
         const conflicto = db.prepare(`
             SELECT id FROM citas
             WHERE id <> ?
             AND LOWER(medico) = LOWER(?)
             AND horario_inicio = ?
-            AND estado = 1
+            AND estado = 'Pendiente'
         `).get(id, medico, horario_inicio);
 
         if (conflicto) {
@@ -414,7 +411,7 @@ app.put('/citas/:id', usuarioActual, (req, res) => {
             paciente,
             horario_inicio,
             horario_fin,
-            estado ? 1 : 0,
+            estado,
             fecha_de_registro || citaExistente.fecha_de_registro,
             id
         );
@@ -433,7 +430,7 @@ app.put('/citas/:id', usuarioActual, (req, res) => {
             paciente,
             horario_inicio,
             horario_fin,
-            estado ? 1 : 0,
+            estado,
             fecha_de_registro || citaExistente.fecha_de_registro,
             id,
             req.yo.usuario
