@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('./database/conexion');
+require('./database/usuarios');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -13,6 +14,72 @@ const SECRETO = process.env.JWT_SECRETO;
 
 if (!SECRETO) {
     throw new Error('Falta configurar la variable de entorno JWT_SECRETO');
+}
+
+// ---------- Preguntarle algo a la IA (péguenlo una vez, arriba de sus rutas) ----------
+const IA_URL = process.env.EXTERNO_URL ?? 'https://generativelanguage.googleapis.com';
+const IA_MODELO = process.env.GEMINI_MODELO ?? 'gemini-flash-lite-latest';
+const IA_CLAVE = process.env.GEMINI_API_KEY ?? '';       // IDEA 3: la clave NO va en el código
+
+class FallaIA extends Error {
+  constructor(estado, mensaje) { super(mensaje); this.estado = estado; }
+}
+
+async function preguntarALaIA(instruccion) {
+    if (!IA_CLAVE && IA_URL.includes('googleapis.com')) {
+        throw new FallaIA(503, 'Falta configurar la variable de entorno GEMINI_API_KEY');
+    }
+
+    let r;
+
+    // Máximo dos intentos: el original y un reintento.
+    for (let intento = 0; intento < 2; intento++) {
+        try {
+            r = await fetch(`${IA_URL}/v1beta/models/${IA_MODELO}:generateContent`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': IA_CLAVE
+                },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: instruccion }] }],
+                    generationConfig: {
+                        responseMimeType: 'application/json',
+                        temperature: 0
+                    }
+                }),
+                signal: AbortSignal.timeout(5000)
+            });
+        } catch (e) {
+            if (e.name === 'TimeoutError') {
+                throw new FallaIA(504, 'La IA tardó demasiado en responder. Intenta en un momento.');
+            }
+
+            throw new FallaIA(502, 'No se pudo conectar con la IA.');
+        }
+
+        // Reintentar una sola vez si el servidor externo falla (5xx).
+        if (r.status >= 500 && intento === 0) {
+            continue;
+        }
+
+        // Los errores 4xx no se reintentan.
+        if (!r.ok) {
+            throw new FallaIA(
+                502,
+                `La IA no está disponible (respondió ${r.status}). Intenta más tarde.`
+            );
+        }
+
+        break;
+    }
+
+    try {
+        const respuesta = await r.json();
+        return JSON.parse(respuesta.candidates[0].content.parts[0].text);
+    } catch (e) {
+        throw new FallaIA(502, 'La IA respondió algo que no entendemos.');
+    }
 }
 
 // Endpoint para el login
@@ -108,8 +175,6 @@ app.get('/docs', (req, res) => {
     res.sendFile(path.join(__dirname, 'docs.html'));
 });
 
-app.use(express.json());
-
 // Función para validar los datos de una cita
 function validarDatosCita(body, esPut = false) {
     const errores = [];
@@ -163,8 +228,8 @@ function validarDatosCita(body, esPut = false) {
         }
     }
 
-    if (typeof estado !== 'boolean') {
-        errores.push('El campo estado es obligatorio y debe ser un valor booleano (true para activa, false para inactiva)');
+    if (!['Completado', 'Pendiente', 'Cancelado', 'Pospuesto'].includes(estado)) {
+        errores.push('El campo estado debe ser uno de estos valores: Completado, Pendiente, Cancelado o Pospuesto');
     }
 
     if (esPut && fecha_de_registro) {
@@ -180,14 +245,10 @@ function validarDatosCita(body, esPut = false) {
     return errores;
 }
 
-// Convierte el valor entero de SQLite a booleano
 function formatearCita(cita) {
     if (!cita) return null;
 
-    return {
-        ...cita,
-        estado: Boolean(cita.estado)
-    };
+    return { ...cita };
 }
 
 // GET /citas
@@ -240,12 +301,12 @@ app.post('/citas', usuarioActual, (req, res) => {
         estado
     } = req.body;
 
-    if (estado === true) {
+    if (estado === 'Pendiente') {
         const conflicto = db.prepare(`
             SELECT id FROM citas
             WHERE LOWER(medico) = LOWER(?)
             AND horario_inicio = ?
-            AND estado = 1
+            AND estado = 'Pendiente'
         `).get(medico, horario_inicio);
 
         if (conflicto) {
@@ -274,7 +335,7 @@ app.post('/citas', usuarioActual, (req, res) => {
         paciente,
         horario_inicio,
         horario_fin,
-        estado ? 1 : 0,
+        estado,
         fechaRegistro,
         req.yo.usuario
     );
@@ -318,13 +379,13 @@ app.put('/citas/:id', usuarioActual, (req, res) => {
         fecha_de_registro
     } = req.body;
 
-    if (estado === true) {
+    if (estado === 'Pendiente') {
         const conflicto = db.prepare(`
             SELECT id FROM citas
             WHERE id <> ?
             AND LOWER(medico) = LOWER(?)
             AND horario_inicio = ?
-            AND estado = 1
+            AND estado = 'Pendiente'
         `).get(id, medico, horario_inicio);
 
         if (conflicto) {
@@ -350,7 +411,7 @@ app.put('/citas/:id', usuarioActual, (req, res) => {
             paciente,
             horario_inicio,
             horario_fin,
-            estado ? 1 : 0,
+            estado,
             fecha_de_registro || citaExistente.fecha_de_registro,
             id
         );
@@ -369,7 +430,7 @@ app.put('/citas/:id', usuarioActual, (req, res) => {
             paciente,
             horario_inicio,
             horario_fin,
-            estado ? 1 : 0,
+            estado,
             fecha_de_registro || citaExistente.fecha_de_registro,
             id,
             req.yo.usuario
@@ -410,6 +471,60 @@ app.delete('/citas/:id', usuarioActual, (req, res) => {
     }
 
     return res.status(204).send();
+});
+
+
+// ---------- Endpoint de análisis de comentarios con IA ----------
+const INSTRUCCION_IA = `Clasifica el comentario de un paciente sobre el SERVICIO de la clínica (puntualidad, trato, instalaciones).
+Responde SOLO un JSON con la forma:
+{"sentimiento": "positivo" | "neutral" | "negativo", "resumen": "máximo 15 palabras en español"}.
+No incluyas información que no esté en el comentario.
+Comentario: `;
+
+app.post('/citas/comentario', async (req, res, next) => {
+    const texto = req.body?.comentario;
+
+    // Validar el comentario recibido
+    if (
+        typeof texto !== 'string' ||
+        texto.trim().length < 2 ||
+        texto.length > 300
+    ) {
+        return res.status(422).json({
+            error: 'Los datos no son válidos',
+            detalles: ['comentario: de 2 a 300 caracteres']
+        });
+    }
+
+    try {
+        // Enviar el comentario a Gemini
+        const ia = await preguntarALaIA(INSTRUCCION_IA + texto);
+
+        // Validar la respuesta de la IA
+        if (
+            !ia ||
+            typeof ia !== 'object' ||
+            !['positivo', 'neutral', 'negativo'].includes(ia.sentimiento) ||
+            typeof ia.resumen !== 'string' ||
+            !ia.resumen.trim()
+        ) {
+            throw new FallaIA(502, 'La IA respondió algo inesperado.');
+        }
+
+        return res.status(200).json({
+            sentimiento: ia.sentimiento,
+            resumen: ia.resumen.trim().slice(0, 200)
+        });
+
+    } catch (e) {
+        if (e instanceof FallaIA) {
+            return res.status(e.estado).json({
+                error: e.message
+            });
+        }
+
+        next(e);
+    }
 });
 
 
