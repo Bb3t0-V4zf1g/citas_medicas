@@ -35,9 +35,6 @@ const IA_URL = process.env.EXTERNO_URL ?? 'https://generativelanguage.googleapis
 const IA_MODELO = process.env.GEMINI_MODELO ?? 'gemini-flash-lite-latest';
 const IA_CLAVE = process.env.GEMINI_API_KEY ?? '';       // IDEA 3: la clave NO va en el código
 
-class FallaIA extends Error {
-  constructor(estado, mensaje) { super(mensaje); this.estado = estado; }
-}
 
 async function preguntarALaIA(instruccion) {
     if (!IA_CLAVE && IA_URL.includes('googleapis.com')) {
