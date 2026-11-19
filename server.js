@@ -1,4 +1,6 @@
+require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const db = require('./database/conexion');
 require('./database/usuarios');
 const bcrypt = require('bcryptjs');
@@ -6,11 +8,23 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 
+const ORIGENES = (
+    process.env.CORS_ORIGENES ??
+    'http://127.0.0.1:5500,http://localhost:5500'
+).split(',');
+
+app.use(cors({
+    origin: ORIGENES,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    allowedHeaders: ['Authorization', 'Content-Type']
+}));
+
 const path = require('node:path');
 
 app.use(express.json());
 
-const SECRETO = process.env.JWT_SECRETO ?? 'cambiar_esto_por_una_clave_secreta_muy_segura_y_larga';
+
+const SECRETO = process.env.JWT_SECRETO;
 
 if (!SECRETO) {
     throw new Error('Falta configurar la variable de entorno JWT_SECRETO');
