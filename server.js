@@ -39,6 +39,16 @@ class FallaIA extends Error {
   constructor(estado, mensaje) { super(mensaje); this.estado = estado; }
 }
 
+// ---------- CORS: qué páginas pueden usar su API desde el navegador ----------
+const cors = require('cors');
+const ORIGENES = (process.env.CORS_ORIGENES ?? 'http://127.0.0.1:5500,http://localhost:5500').split(',');
+
+app.use(cors({
+  origin: ORIGENES,                                   // una lista, nunca '*'
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Authorization', 'Content-Type']   // sin Authorization, el token no pasa la pregunta previa
+}));
+
 async function preguntarALaIA(instruccion) {
     if (!IA_CLAVE && IA_URL.includes('googleapis.com')) {
         throw new FallaIA(503, 'Falta configurar la variable de entorno GEMINI_API_KEY');

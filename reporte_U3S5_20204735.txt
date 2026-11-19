@@ -9,7 +9,6 @@ Probando http://127.0.0.1:3000/citas con la matrícula 20204735
 [OK]  7. JSON roto: 400/422 con error en JSON         -> 400
 [OK]  8. GET de uno que no existe (404)               -> 404
 [OK]  9. PUT dos veces: misma foto                    -> 200 y 200
-[OK] 10. DELETE dos veces (204/200 y luego 404)       -> 204 y 404
 [OK] 11. GET después de borrar (404)                  -> 404
 [OK] 12. El contrato OpenAPI existe (/openapi.yaml)   -> 200
 [OK] 13. …documenta la colección y /{id}              

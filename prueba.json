@@ -63,5 +63,6 @@
     "cuerpo": {
       "comentario": "Me atendieron puntual, pero en recepción tardaron mucho"
     }
-  }
+  },
+  "cors": {"origen": "http://127.0.0.1:5500"}
 }
