@@ -23,3 +23,16 @@ npm install express
    ```
 
 La API estará disponible en `http://localhost:3000` y la colección de citas en `/citas`. El resultado de las pruebas se guarda también en un archivo `reporte_U3S2_<matrícula>.txt`.
+
+
+Para las pruebas 21 a 25:
+En PowerShell, detén la API con Ctrl+C y arráncala así en la misma terminal:
+   ```bash
+   $env:EXTERNO_URL = "http://127.0.0.1:9000"
+   node server.js
+   ```
+Luego, desde otra terminal, ejecuta:
+   ```bash
+   python probar_api.py
+   ```
+El script controla el simulador durante las
