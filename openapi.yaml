@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: "API de citas"
-  version: "1.0"
-  description: 'Todos los errores responden {"error", "detalles"}.'
+  version: "1.1"
+  description: 'Las rutas protegidas requieren JWT Bearer. Los errores responden error, codigo, detalles y request_id.'
 paths:
   "/login":
     post:
@@ -37,11 +37,169 @@ paths:
                     type: string
                   token_type:
                     type: string
-                    example: Bearer
+                    example: bearer
+                  expires_in:
+                    type: integer
+                    example: 1800
         "401":
           description: "Credenciales incorrectas"
         "422":
           description: "Datos de inicio de sesión inválidos"
+  "/usuarios/me":
+    get:
+      summary: "Consultar la cuenta autenticada"
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: "Perfil de cuenta sin información sensible"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Usuario" } } }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+    patch:
+      summary: "Cambiar la propia contraseña"
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clave_actual, nueva_clave]
+              properties:
+                clave_actual: { type: string, format: password }
+                nueva_clave: { type: string, format: password, minLength: 8 }
+      responses:
+        "204": { description: "Contraseña actualizada; los tokens anteriores se revocan" }
+        "403": { $ref: "#/components/responses/NoPermitido" }
+        "422": { $ref: "#/components/responses/DatosInvalidos" }
+  "/usuarios":
+    get:
+      summary: "Listar cuentas (administrador)"
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: "Cuentas sin hashes de contraseña"
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Usuario" } } } }
+        "403": { $ref: "#/components/responses/NoPermitido" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+  "/usuarios/{usuario}":
+    patch:
+      summary: "Cambiar rol o estado de una cuenta (administrador)"
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: usuario, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rol: { type: string, enum: [admin, usuario] }
+                activo: { type: boolean }
+      responses:
+        "200": { description: "Cuenta actualizada" }
+        "403": { $ref: "#/components/responses/NoPermitido" }
+        "404": { $ref: "#/components/responses/NoExiste" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "422": { $ref: "#/components/responses/DatosInvalidos" }
+  "/pacientes":
+    get:
+      summary: "Listar perfiles de paciente autorizados"
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: "Un usuario común recibe sólo su propio perfil" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+    post:
+      summary: "Crear un perfil de paciente"
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/PacienteEntrada" } } }
+      responses:
+        "201": { description: "Perfil creado" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "409": { $ref: "#/components/responses/Conflicto" }
+        "422": { $ref: "#/components/responses/DatosInvalidos" }
+  "/pacientes/me":
+    get:
+      summary: "Consultar el perfil de paciente propio"
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: "Perfil encontrado" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "404": { $ref: "#/components/responses/NoExiste" }
+  "/pacientes/{id}":
+    get:
+      summary: "Consultar un perfil autorizado"
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses:
+        "200": { description: "Perfil encontrado" }
+        "403": { $ref: "#/components/responses/NoPermitido" }
+        "404": { $ref: "#/components/responses/NoExiste" }
+    patch:
+      summary: "Modificar un perfil autorizado"
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/PacienteEntrada" } } }
+      responses:
+        "200": { description: "Perfil actualizado" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/NoPermitido" }
+        "404": { $ref: "#/components/responses/NoExiste" }
+        "422": { $ref: "#/components/responses/DatosInvalidos" }
+  "/medicos":
+    get:
+      summary: "Listar médicos"
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: "Lista de médicos" }, "401": { $ref: "#/components/responses/NoAutorizado" } }
+    post:
+      summary: "Crear médico (administrador)"
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/MedicoEntrada" } } }
+      responses: { "201": { description: "Médico creado" }, "401": { $ref: "#/components/responses/NoAutorizado" }, "403": { $ref: "#/components/responses/NoPermitido" }, "409": { $ref: "#/components/responses/Conflicto" }, "422": { $ref: "#/components/responses/DatosInvalidos" } }
+  "/medicos/{id}":
+    parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+    get:
+      summary: "Consultar médico"
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: "Médico encontrado" }, "401": { $ref: "#/components/responses/NoAutorizado" }, "404": { $ref: "#/components/responses/NoExiste" } }
+    patch:
+      summary: "Modificar médico o asociar su cuenta (administrador)"
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/MedicoEntrada" } } }
+      responses: { "200": { description: "Médico actualizado" }, "401": { $ref: "#/components/responses/NoAutorizado" }, "403": { $ref: "#/components/responses/NoPermitido" }, "404": { $ref: "#/components/responses/NoExiste" }, "409": { $ref: "#/components/responses/Conflicto" }, "422": { $ref: "#/components/responses/DatosInvalidos" } }
+  "/consultorios":
+    get:
+      summary: "Listar consultorios"
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: "Lista de consultorios" }, "401": { $ref: "#/components/responses/NoAutorizado" } }
+    post:
+      summary: "Crear consultorio (administrador)"
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ConsultorioEntrada" } } }
+      responses: { "201": { description: "Consultorio creado" }, "401": { $ref: "#/components/responses/NoAutorizado" }, "403": { $ref: "#/components/responses/NoPermitido" }, "409": { $ref: "#/components/responses/Conflicto" }, "422": { $ref: "#/components/responses/DatosInvalidos" } }
+  "/consultorios/{id}":
+    parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+    get:
+      summary: "Consultar consultorio"
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: "Consultorio encontrado" }, "401": { $ref: "#/components/responses/NoAutorizado" }, "404": { $ref: "#/components/responses/NoExiste" } }
+    patch:
+      summary: "Modificar consultorio (administrador)"
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ConsultorioEntrada" } } }
+      responses: { "200": { description: "Consultorio actualizado" }, "401": { $ref: "#/components/responses/NoAutorizado" }, "403": { $ref: "#/components/responses/NoPermitido" }, "404": { $ref: "#/components/responses/NoExiste" }, "409": { $ref: "#/components/responses/Conflicto" }, "422": { $ref: "#/components/responses/DatosInvalidos" } }
   "/citas":
     get:
       summary: "Listar citas"
@@ -129,6 +287,34 @@ paths:
         "404": { $ref: "#/components/responses/NoExiste" }
         "403": { $ref: "#/components/responses/NoPermitido" }
         "401": { $ref: "#/components/responses/NoAutorizado" }
+  "/citas/comentario":
+    post:
+      summary: "Analizar un comentario con IA"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comentario]
+              properties:
+                comentario:
+                  type: string
+                  minLength: 2
+                  maxLength: 300
+      responses:
+        "200":
+          description: "Comentario clasificado"
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "422": { $ref: "#/components/responses/DatosInvalidos" }
+        "502":
+          description: "La dependencia de IA devolvió una respuesta no válida"
+        "503":
+          description: "La dependencia de IA no está configurada o disponible"
+        "504":
+          description: "La dependencia de IA agotó el tiempo de espera"
 components:
   securitySchemes:
     bearerAuth:
@@ -136,6 +322,39 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    Usuario:
+      type: object
+      required: [usuario, rol, activo]
+      properties:
+        usuario: { type: string }
+        rol: { type: string, enum: [admin, usuario] }
+        activo: { type: integer, enum: [0, 1] }
+    PacienteEntrada:
+      type: object
+      required: [nombre]
+      properties:
+        nombre: { type: string, minLength: 5 }
+        telefono: { type: string }
+        correo: { type: string, format: email }
+        fecha_nacimiento: { type: string, format: date }
+    MedicoEntrada:
+      type: object
+      required: [nombre, cedula_profesional, especialidad]
+      properties:
+        nombre: { type: string, minLength: 5 }
+        cedula_profesional: { type: string }
+        especialidad: { type: string }
+        usuario_id:
+          type: string
+          nullable: true
+          description: "Sólo administrador: cuenta que podrá consultar las citas del médico."
+    ConsultorioEntrada:
+      type: object
+      required: [codigo, nombre]
+      properties:
+        codigo: { type: string }
+        nombre: { type: string }
+        ubicacion: { type: string }
     CitaNuevo:
       type: object
       required:
@@ -154,19 +373,15 @@ components:
         "horario_inicio":
           type: string
           format: date-time
-          description: "obligatorio, debe ser antes del horario de fin,  y acorde a la disponibilidad del médico, y después de la fecha actul"
+          description: "Obligatorio; debe ser anterior al horario de fin. Se conserva en la zona horaria ISO proporcionada durante la transición del modelo."
         "horario_fin":
           type: string
           format: date-time
-          description: "obligatorio, debe ser después del horario de inicio con una diferencia mínima de 1 hora, acorde a la disponibilidade del médico. Y después de la fecha actul"
+          description: "Obligatorio; debe ser posterior al horario de inicio y no puede traslaparse con otra cita pendiente del mismo médico."
         "estado":
           type: string
           enum: ["Completado", "Pendiente", "Cancelado", "Pospuesto"]
           description: "obligatorio, debe ser uno de los estados permitidos"
-        "fecha_de_registro":
-          type: string
-          format: date-time
-          description: "obligatorio, debe guardar la fecha y hora exacta de cuando se hizo el registro o modificación"
     Cita:
       allOf:
         - $ref: "#/components/schemas/CitaNuevo"
@@ -175,17 +390,33 @@ components:
           properties:
             id:  
               type: integer 
-            usuario_id: 
+            fecha_de_registro:
               type: string
-              description: "Usuario propietario de la cita"
+              format: date-time
+              readOnly: true
+            paciente_id:
+              type: integer
+              readOnly: true
+              description: "Perfil de paciente relacionado; concede acceso a su cuenta vinculada."
+            medico_id:
+              type: integer
+              readOnly: true
+              description: "Perfil de médico relacionado; concede acceso a la cuenta médica vinculada."
+            consultorio_id:
+              type: integer
+              nullable: true
+              readOnly: true
+              description: "Consultorio asignado; se agregará al crear o reprogramar con el contrato normalizado."
     Error:
       type: object
       required: ["error", "detalles"]
       properties:
         error: { type: string }
+        codigo: { type: string, example: VALIDATION_ERROR }
         detalles:
           type: array
           items: { type: string }
+        request_id: { type: string, format: uuid }
   responses:
     JsonInvalido:
       description: "El cuerpo no es un JSON válido"
