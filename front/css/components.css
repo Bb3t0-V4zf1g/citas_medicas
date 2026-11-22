@@ -1,0 +1,261 @@
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 18px;
+  min-width: 0;
+}
+
+.card h2 {
+  font-size: 17px;
+  margin-bottom: 10px;
+}
+
+.subtitulo {
+  font-size: 13px;
+  color: var(--soft);
+  font-weight: 400;
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--soft);
+  margin-top: 10px;
+}
+
+input,
+select,
+textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  border: 1px solid #c9d1dd;
+  border-radius: 9px;
+  padding: 8px 10px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+input.mal,
+select.mal,
+textarea.mal {
+  border-color: var(--red);
+  background: var(--red-t);
+}
+
+.err-campo {
+  color: var(--red);
+  font-size: 12.5px;
+  min-height: 16px;
+  margin-top: 3px;
+}
+
+.btn {
+  background: var(--blue);
+  color: #ffffff;
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--blue-dark);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.btn-secundario {
+  background: var(--slate-t);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.btn-secundario:hover:not(:disabled) {
+  background: #e1e7f0;
+}
+
+.btn-peligro {
+  background: var(--red-t);
+  color: var(--red);
+  border: 1px solid #f2c7bf;
+}
+
+.btn-peligro:hover:not(:disabled) {
+  background: #f7d9d3;
+}
+
+.btn-nav {
+  background: transparent;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 8px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-size: 13.5px;
+}
+
+.btn-nav:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.btn-chico {
+  padding: 4px 10px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+.msg {
+  margin-top: 10px;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 14px;
+}
+
+.msg.ok {
+  background: var(--teal-t);
+  color: var(--teal);
+}
+
+.msg.aviso {
+  background: var(--amber-t);
+  color: var(--amber);
+}
+
+.msg.mal {
+  background: var(--red-t);
+  color: var(--red);
+}
+
+.tabla {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+th {
+  font-size: 12px;
+  color: var(--soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.acciones-celda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--blue-t);
+  color: #1f3fa8;
+}
+
+.badge-ok {
+  background: var(--teal-t);
+  color: var(--teal);
+}
+
+.badge-aviso {
+  background: var(--amber-t);
+  color: var(--amber);
+}
+
+.badge-mal {
+  background: var(--red-t);
+  color: var(--red);
+}
+
+.badge-nav {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.chips {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chips span {
+  display: inline-block;
+  background: var(--blue-t);
+  color: #1f3fa8;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 13.5px;
+}
+
+.rueda {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border: 3px solid var(--line);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: girar 0.8s linear infinite;
+  vertical-align: -3px;
+  margin-right: 6px;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.registro-log {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--ink);
+}
+
+.datos-lista {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  font-size: 14px;
+}
+
+.datos-lista dt {
+  font-weight: 600;
+  color: var(--soft);
+}
+
+.datos-lista dd {
+  margin: 0;
+}

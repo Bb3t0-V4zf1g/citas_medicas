@@ -7,7 +7,8 @@ database/*.db-shm
 database/*.db-wal
 
 # Archivos de persistencia del evaluador
-.persistencia_U3S3_*.json
+.persistencia_*.json
+reporte_*.txt
 
 # Variables de entorno
 .env
@@ -18,3 +19,4 @@ database/*.db-wal
 *.log
 __pycache__/
 *.pyc
+PLAN_TEMPORAL.md

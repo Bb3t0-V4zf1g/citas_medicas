@@ -60,6 +60,7 @@
   "externo": {
     "metodo": "POST",
     "ruta": "/citas/comentario",
+    "token": "admin",
     "cuerpo": {
       "comentario": "Me atendieron puntual, pero en recepción tardaron mucho"
     }
