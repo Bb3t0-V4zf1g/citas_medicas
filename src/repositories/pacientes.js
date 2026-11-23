@@ -10,8 +10,12 @@ function crearRepositorioPacientes({ db }) {
         return propio ? propio.id : null;
     }
 
+    function buscarPorNombre(nombre) {
+        return db.prepare('SELECT * FROM pacientes WHERE LOWER(nombre) = LOWER(?) LIMIT 1').get(nombre);
+    }
+
     function buscarIdPorNombre(nombre) {
-        const existente = db.prepare('SELECT id FROM pacientes WHERE LOWER(nombre) = LOWER(?) LIMIT 1').get(nombre);
+        const existente = buscarPorNombre(nombre);
         return existente ? existente.id : null;
     }
 
@@ -48,6 +52,7 @@ function crearRepositorioPacientes({ db }) {
     return {
         obtenerPorUsuario,
         buscarIdPorUsuario,
+        buscarPorNombre,
         buscarIdPorNombre,
         listar,
         obtenerPorId,

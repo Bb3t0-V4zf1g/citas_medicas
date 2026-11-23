@@ -19,4 +19,3 @@ reporte_*.txt
 *.log
 __pycache__/
 *.pyc
-PLAN_TEMPORAL.md

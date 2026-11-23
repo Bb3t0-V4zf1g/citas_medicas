@@ -27,7 +27,7 @@ export function renderLoginPage(contenedor) {
         <p class="subtitulo">Ingresa con tu cuenta de usuario o administrador.</p>
         <form id="formLogin" novalidate>
           <label for="loginUsuario">Usuario</label>
-          <input id="loginUsuario" name="usuario" autocomplete="username" placeholder="admin / ana / beto">
+          <input id="loginUsuario" name="usuario" autocomplete="username" placeholder="admin / ana / juan">
           <div class="err-campo" data-error-for="usuario"></div>
 
           <label for="loginClave">Clave</label>

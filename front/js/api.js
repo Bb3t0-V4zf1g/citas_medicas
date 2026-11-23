@@ -136,6 +136,7 @@ export const api = {
     me: () => pedir('GET', '/usuarios/me'),
     cambiarClave: cuerpo => pedir('PATCH', '/usuarios/me', cuerpo),
     listar: () => pedir('GET', '/usuarios'),
+    crear: cuerpo => pedir('POST', '/usuarios', cuerpo),
     actualizar: (usuario, cuerpo) => pedir('PATCH', `/usuarios/${encodeURIComponent(usuario)}`, cuerpo)
   },
   pacientes: {
@@ -158,6 +159,7 @@ export const api = {
     actualizar: (id, cuerpo) => pedir('PATCH', `/consultorios/${encodeURIComponent(id)}`, cuerpo)
   },
   citas: {
+    opciones: () => pedir('GET', '/citas/opciones'),
     listar: () => pedir('GET', '/citas'),
     obtener: id => pedir('GET', `/citas/${encodeURIComponent(id)}`),
     crear: cuerpo => pedir('POST', '/citas', cuerpo),

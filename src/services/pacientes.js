@@ -36,15 +36,15 @@ function crearServicioPacientes({ pacientesRepo, usuariosRepo }) {
             throw new ErrorApi(422, 'Datos inválidos', errores);
         }
 
-        const usuarioId = actor.rol === 'admin' && body.usuario_id !== undefined
-            ? body.usuario_id
+        const usuarioId = actor.rol === 'admin'
+            ? (body.usuario_id ?? null)
             : actor.usuario;
 
         if (usuarioId !== null && !usuariosRepo.existe(usuarioId)) {
-            throw new ErrorApi(422, 'Datos inválidos', ['usuario_id no existe']);
+            throw new ErrorApi(422, 'Datos inválidos', ['usuario_id: el usuario indicado no existe']);
         }
         if (usuarioId && pacientesRepo.existePorUsuario(usuarioId)) {
-            throw new ErrorApi(409, 'Conflicto de datos', ['Ese usuario ya tiene perfil de paciente']);
+            throw new ErrorApi(409, 'Conflicto de datos', ['usuario_id: ese usuario ya tiene perfil de paciente']);
         }
 
         return pacientesRepo.crear({
@@ -69,6 +69,17 @@ function crearServicioPacientes({ pacientesRepo, usuariosRepo }) {
         }
 
         const { errores, datos } = validarPaciente(body, true);
+        if (actor.rol === 'admin' && body.usuario_id !== undefined) {
+            if (body.usuario_id !== null && !usuariosRepo.existe(body.usuario_id)) {
+                errores.push('usuario_id: el usuario indicado no existe');
+            } else {
+                const existenteId = body.usuario_id ? pacientesRepo.buscarIdPorUsuario(body.usuario_id) : null;
+                if (existenteId && existenteId !== paciente.id) {
+                    throw new ErrorApi(409, 'Conflicto de datos', ['usuario_id: ese usuario ya tiene perfil de paciente']);
+                }
+                datos.usuario_id = body.usuario_id;
+            }
+        }
         if (errores.length) {
             throw new ErrorApi(422, 'Datos inválidos', errores);
         }

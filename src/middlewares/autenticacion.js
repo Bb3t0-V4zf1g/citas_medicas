@@ -38,7 +38,9 @@ function crearUsuarioActual({ db, usuariosRepo, jwtSecreto }) {
         } catch {
             return res.status(401).json({
                 error: 'Token inválido',
-                detalles: ['El token es inválido o ha expirado']
+                codigo: 'TOKEN_INVALIDO',
+                detalles: ['El token es inválido o ha expirado'],
+                request_id: req.idSolicitud
             });
         }
     };

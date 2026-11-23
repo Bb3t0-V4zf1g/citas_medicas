@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: "API de citas"
-  version: "1.1"
+  version: "1.0.0"
   description: 'Las rutas protegidas requieren JWT Bearer. Los errores responden error, codigo, detalles y request_id.'
 paths:
   "/login":
@@ -81,6 +81,28 @@ paths:
           content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Usuario" } } } }
         "403": { $ref: "#/components/responses/NoPermitido" }
         "401": { $ref: "#/components/responses/NoAutorizado" }
+    post:
+      summary: "Crear una cuenta de usuario (administrador)"
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [usuario, clave]
+              properties:
+                usuario: { type: string, minLength: 3, maxLength: 40 }
+                clave: { type: string, format: password, minLength: 8 }
+                rol: { type: string, enum: [admin, usuario], default: usuario }
+      responses:
+        "201":
+          description: "Cuenta creada"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Usuario" } } }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/NoPermitido" }
+        "409": { $ref: "#/components/responses/Conflicto" }
+        "422": { $ref: "#/components/responses/DatosInvalidos" }
   "/usuarios/{usuario}":
     patch:
       summary: "Cambiar rol o estado de una cuenta (administrador)"
@@ -287,6 +309,15 @@ paths:
         "404": { $ref: "#/components/responses/NoExiste" }
         "403": { $ref: "#/components/responses/NoPermitido" }
         "401": { $ref: "#/components/responses/NoAutorizado" }
+  "/citas/opciones":
+    get:
+      summary: "Consultar permisos y catálogos de médicos/pacientes para el formulario de citas"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "Opciones disponibles según el tipo de cuenta (admin, medico o paciente)"
+        "401": { $ref: "#/components/responses/NoAutorizado" }
   "/citas/comentario":
     post:
       summary: "Analizar un comentario con IA"
@@ -337,6 +368,10 @@ components:
         telefono: { type: string }
         correo: { type: string, format: email }
         fecha_nacimiento: { type: string, format: date }
+        usuario_id:
+          type: string
+          nullable: true
+          description: "Sólo administrador: cuenta vinculada al paciente."
     MedicoEntrada:
       type: object
       required: [nombre, cedula_profesional, especialidad]
@@ -373,11 +408,11 @@ components:
         "horario_inicio":
           type: string
           format: date-time
-          description: "Obligatorio; debe ser anterior al horario de fin. Se conserva en la zona horaria ISO proporcionada durante la transición del modelo."
+          description: "Obligatorio; debe ser en intervalos de 30 minutos (:00 o :30) y anterior al horario de fin."
         "horario_fin":
           type: string
           format: date-time
-          description: "Obligatorio; debe ser posterior al horario de inicio y no puede traslaparse con otra cita pendiente del mismo médico."
+          description: "Obligatorio; debe ser en intervalos de 30 minutos (:00 o :30), posterior al horario de inicio y no traslaparse con otra cita pendiente del mismo médico."
         "estado":
           type: string
           enum: ["Completado", "Pendiente", "Cancelado", "Pospuesto"]

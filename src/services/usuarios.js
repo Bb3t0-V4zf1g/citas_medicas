@@ -1,7 +1,25 @@
 const ErrorApi = require('../errors/ErrorApi');
-const { validarCambioClave, validarActualizacionUsuario } = require('../validators/usuarios');
+const { validarCreacionUsuario, validarCambioClave, validarActualizacionUsuario } = require('../validators/usuarios');
 
 function crearServicioUsuarios({ usuariosRepo, bcrypt }) {
+    function crear(body) {
+        const { errores, datos } = validarCreacionUsuario(body);
+        if (errores.length) {
+            throw new ErrorApi(422, 'Datos inválidos', errores);
+        }
+
+        if (usuariosRepo.existe(datos.usuario)) {
+            throw new ErrorApi(409, 'Conflicto de datos', ['Ese nombre de usuario ya existe'], 'DATA_CONFLICT');
+        }
+
+        const clave_hash = bcrypt.hashSync(datos.clave, 12);
+        return usuariosRepo.crear({
+            usuario: datos.usuario,
+            clave_hash,
+            rol: datos.rol
+        });
+    }
+
     function obtenerPerfil(usuario) {
         return usuariosRepo.obtenerPorUsuario(usuario);
     }
@@ -40,6 +58,7 @@ function crearServicioUsuarios({ usuariosRepo, bcrypt }) {
     }
 
     return {
+        crear,
         obtenerPerfil,
         cambiarClave,
         listar,

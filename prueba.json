@@ -43,14 +43,14 @@
       "clave": "ana12345"
     },
     "otro": {
-      "usuario": "beto",
-      "clave": "beto12345"
+      "usuario": "juan",
+      "clave": "juan12345"
     }
   },
   "propio": {
     "coleccion": "/citas",
     "valido": {
-      "medico": "Dra. Laura Gomez",
+      "medico": "Dra. Ana Torres",
       "paciente": "Pedro Ramirez",
       "horario_inicio": "2026-11-20T10:00:00Z",
       "horario_fin": "2026-11-20T10:30:00Z",
