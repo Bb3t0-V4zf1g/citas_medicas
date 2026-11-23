@@ -1,19 +1,54 @@
 import { api, explicarError } from '../api.js';
 import { esc, mostrarMensaje } from '../components/alert.js';
+import {
+  limpiarErroresFormulario,
+  aplicarErroresCampos,
+  conCarga
+} from '../components/form.js';
 import { renderizarTabla } from '../components/table.js';
 
 export function renderUsuariosPage(contenedor) {
   contenedor.innerHTML = `
-    <section class="card ancho">
-      <div class="fila-cabecera">
-        <h2>Administración de usuarios <span class="subtitulo">GET /usuarios · PATCH /usuarios/:usuario</span></h2>
-        <button id="btnRecargarUsuarios" class="btn btn-secundario" type="button">Recargar</button>
-      </div>
-      <div id="msgUsuarios"></div>
-      <div id="tablaUsuarios" class="tabla"></div>
-    </section>
+    <div class="grid-2">
+      <section class="card">
+        <h2>Nuevo usuario <span class="subtitulo">POST /usuarios</span></h2>
+        <form id="formNuevoUsuario" novalidate>
+          <label for="usuNombre">Nombre de usuario</label>
+          <input id="usuNombre" name="usuario" placeholder="dra.elena" autocomplete="off">
+          <div class="err-campo" data-error-for="usuario"></div>
+
+          <label for="usuClave">Contraseña inicial (mínimo 8 caracteres)</label>
+          <input id="usuClave" name="clave" type="password" placeholder="••••••••" autocomplete="new-password">
+          <div class="err-campo" data-error-for="clave"></div>
+
+          <label for="usuRol">Rol</label>
+          <select id="usuRol" name="rol">
+            <option value="usuario">usuario (médico o paciente)</option>
+            <option value="admin">admin</option>
+          </select>
+          <div class="err-campo" data-error-for="rol"></div>
+
+          <div class="fila-acciones">
+            <button id="btnCrearUsuario" class="btn" type="submit">Crear usuario</button>
+          </div>
+          <div id="msgNuevoUsuario"></div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="fila-cabecera">
+          <h2>Administración de usuarios <span class="subtitulo">GET /usuarios · PATCH /usuarios/:usuario</span></h2>
+          <button id="btnRecargarUsuarios" class="btn btn-secundario" type="button">Recargar</button>
+        </div>
+        <div id="msgUsuarios"></div>
+        <div id="tablaUsuarios" class="tabla"></div>
+      </section>
+    </div>
   `;
 
+  const form = contenedor.querySelector('#formNuevoUsuario');
+  const btnCrear = contenedor.querySelector('#btnCrearUsuario');
+  const msgNuevo = contenedor.querySelector('#msgNuevoUsuario');
   const msg = contenedor.querySelector('#msgUsuarios');
   const tabla = contenedor.querySelector('#tablaUsuarios');
   const btnRecargar = contenedor.querySelector('#btnRecargarUsuarios');
@@ -81,6 +116,32 @@ export function renderUsuariosPage(contenedor) {
       ]
     });
   }
+
+  form.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    limpiarErroresFormulario(form);
+    mostrarMensaje(msgNuevo, '', '');
+
+    const payload = {
+      usuario: form.usuario.value.trim(),
+      clave: form.clave.value,
+      rol: form.rol.value
+    };
+
+    await conCarga(btnCrear, async () => {
+      const { codigo, datos } = await api.usuarios.crear(payload);
+      if (codigo === 201) {
+        mostrarMensaje(msgNuevo, 'ok', `Usuario "${datos.usuario}" creado.`);
+        form.reset();
+        await cargarUsuarios();
+        return;
+      }
+
+      aplicarErroresCampos(form, datos);
+      const [tipo, texto] = explicarError(codigo, datos);
+      mostrarMensaje(msgNuevo, tipo, texto);
+    });
+  });
 
   btnRecargar.addEventListener('click', cargarUsuarios);
   cargarUsuarios();

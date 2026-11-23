@@ -1,5 +1,38 @@
 const { esObjetoJson } = require('./comunes');
 
+function validarCreacionUsuario(body) {
+    if (!esObjetoJson(body)) {
+        return {
+            errores: ['El cuerpo debe ser un objeto JSON'],
+            datos: {}
+        };
+    }
+
+    const errores = [];
+    const usuario = typeof body.usuario === 'string' ? body.usuario.trim() : '';
+    const clave = typeof body.clave === 'string' ? body.clave : '';
+    const rol = body.rol === undefined || body.rol === '' ? 'usuario' : body.rol;
+
+    if (!usuario) {
+        errores.push('usuario: es obligatorio');
+    } else if (usuario.length < 3 || usuario.length > 40 || !/^[a-zA-Z0-9._-]+$/.test(usuario)) {
+        errores.push('usuario: de 3 a 40 caracteres (solo letras, números, punto, guion o guion bajo)');
+    }
+
+    if (!clave || clave.length < 8 || clave.length > 128) {
+        errores.push('clave: debe tener al menos 8 caracteres');
+    }
+
+    if (!['admin', 'usuario'].includes(rol)) {
+        errores.push('rol: debe ser admin o usuario');
+    }
+
+    return {
+        errores,
+        datos: { usuario, clave, rol }
+    };
+}
+
 function validarCambioClave(body) {
     if (!esObjetoJson(body)) {
         return {
@@ -57,4 +90,4 @@ function validarActualizacionUsuario(body) {
     };
 }
 
-module.exports = { validarCambioClave, validarActualizacionUsuario };
+module.exports = { validarCreacionUsuario, validarCambioClave, validarActualizacionUsuario };

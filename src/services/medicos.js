@@ -49,6 +49,19 @@ function crearServicioMedicos({ medicosRepo, usuariosRepo }) {
         if (errores.length) {
             throw new ErrorApi(422, 'Datos inválidos', errores);
         }
+
+        const cedulaFinal = datos.cedula_profesional ?? fila.cedula_profesional;
+        const especialidadFinal = datos.especialidad ?? fila.especialidad;
+        if (
+            fila.datos_pendientes_validacion === 1
+            && cedulaFinal
+            && !cedulaFinal.startsWith('MIGRACION-PENDIENTE-')
+            && especialidadFinal
+            && especialidadFinal.trim().toLowerCase() !== 'por definir'
+        ) {
+            datos.datos_pendientes_validacion = 0;
+        }
+
         if (!medicosRepo.actualizar(fila.id, datos)) {
             throw new ErrorApi(422, 'Datos inválidos', ['Indique al menos un campo modificable']);
         }

@@ -9,9 +9,12 @@ import {
 } from '../components/form.js';
 import { renderizarTabla } from '../components/table.js';
 
+const OPCION_CREAR_USUARIO = '__crear__';
+
 export function renderMedicosPage(contenedor) {
   const admin = esAdmin();
   let medicoEditando = null;
+  let usuariosDisponibles = [];
 
   contenedor.innerHTML = `
     <div class="${admin ? 'grid-2' : 'stack'}">
@@ -31,9 +34,22 @@ export function renderMedicosPage(contenedor) {
             <input id="medEspecialidad" name="especialidad" placeholder="Cardiología">
             <div class="err-campo" data-error-for="especialidad"></div>
 
-            <label for="medUsuarioId">Usuario vinculado (opcional)</label>
-            <input id="medUsuarioId" name="usuario_id" placeholder="Dejar vacío para sin cuenta">
+            <label for="medUsuarioId">Cuenta de usuario (opcional)</label>
+            <select id="medUsuarioId" name="usuario_id">
+              <option value="">Sin cuenta vinculada</option>
+              <option value="${OPCION_CREAR_USUARIO}">+ Crear nueva cuenta para este médico</option>
+            </select>
             <div class="err-campo" data-error-for="usuario_id"></div>
+
+            <div id="bloqueNuevoUsuarioMedico" class="oculto">
+              <label for="medNuevoUsuario">Usuario nuevo</label>
+              <input id="medNuevoUsuario" name="usuario" placeholder="dra.elena" autocomplete="off">
+              <div class="err-campo" data-error-for="usuario"></div>
+
+              <label for="medNuevaClave">Contraseña (mínimo 8 caracteres)</label>
+              <input id="medNuevaClave" name="clave" type="password" placeholder="••••••••" autocomplete="new-password">
+              <div class="err-campo" data-error-for="clave"></div>
+            </div>
 
             <div class="fila-acciones">
               <button id="btnGuardarMedico" class="btn" type="submit">Guardar</button>
@@ -61,15 +77,49 @@ export function renderMedicosPage(contenedor) {
 
   const form = contenedor.querySelector('#formMedico');
   const titulo = contenedor.querySelector('#tituloFormMedico');
+  const selectUsuario = contenedor.querySelector('#medUsuarioId');
+  const bloqueNuevoUsuario = contenedor.querySelector('#bloqueNuevoUsuarioMedico');
   const btnGuardar = contenedor.querySelector('#btnGuardarMedico');
   const btnCancelar = contenedor.querySelector('#btnCancelarMedico');
   const msgForm = contenedor.querySelector('#msgMedico');
+
+  function actualizarVisibilidadNuevoUsuario() {
+    if (!bloqueNuevoUsuario || !selectUsuario) return;
+    const creandoNuevo = selectUsuario.value === OPCION_CREAR_USUARIO;
+    bloqueNuevoUsuario.classList.toggle('oculto', !creandoNuevo);
+  }
+
+  function renderizarOpcionesUsuario(seleccionActual = '') {
+    if (!selectUsuario) return;
+    const opciones = [
+      '<option value="">Sin cuenta vinculada</option>',
+      ...usuariosDisponibles.map(u => (
+        `<option value="${esc(u.usuario)}">${esc(u.usuario)} (${esc(u.rol)})</option>`
+      )),
+      `<option value="${OPCION_CREAR_USUARIO}">+ Crear nueva cuenta para este médico</option>`
+    ];
+    selectUsuario.innerHTML = opciones.join('');
+    if (seleccionActual) {
+      selectUsuario.value = seleccionActual;
+    }
+    actualizarVisibilidadNuevoUsuario();
+  }
+
+  async function cargarUsuariosSelect(seleccionActual = '') {
+    if (!admin || !selectUsuario) return;
+    const { codigo, datos } = await api.usuarios.listar();
+    if (codigo === 200 && Array.isArray(datos)) {
+      usuariosDisponibles = datos;
+    }
+    renderizarOpcionesUsuario(seleccionActual);
+  }
 
   function reiniciarFormulario() {
     if (!form) return;
     medicoEditando = null;
     form.reset();
     limpiarErroresFormulario(form);
+    renderizarOpcionesUsuario('');
     titulo.textContent = 'Nuevo médico · POST /medicos';
     btnGuardar.textContent = 'Guardar';
     btnCancelar.classList.add('oculto');
@@ -83,7 +133,7 @@ export function renderMedicosPage(contenedor) {
     form.nombre.value = medico.nombre || '';
     form.cedula_profesional.value = medico.cedula_profesional || '';
     form.especialidad.value = medico.especialidad || '';
-    form.usuario_id.value = medico.usuario_id || '';
+    renderizarOpcionesUsuario(medico.usuario_id || '');
     titulo.textContent = `Editar médico #${medico.id} · PATCH /medicos/${medico.id}`;
     btnGuardar.textContent = 'Actualizar';
     btnCancelar.classList.remove('oculto');
@@ -123,9 +173,14 @@ export function renderMedicosPage(contenedor) {
     });
   }
 
-  btnRecargar.addEventListener('click', cargarMedicos);
+  btnRecargar.addEventListener('click', () => {
+    cargarMedicos();
+    cargarUsuariosSelect(selectUsuario ? selectUsuario.value : '');
+  });
 
   if (form) {
+    selectUsuario.addEventListener('change', actualizarVisibilidadNuevoUsuario);
+
     btnCancelar.addEventListener('click', () => {
       reiniciarFormulario();
       mostrarMensaje(msgForm, '', '');
@@ -143,20 +198,37 @@ export function renderMedicosPage(contenedor) {
         especialidad: form.especialidad.value
       });
 
-      const usuarioTrim = form.usuario_id.value.trim();
-      if (usuarioTrim) {
-        payload.usuario_id = usuarioTrim;
-      } else if (editando && medicoEditando.usuario_id) {
-        payload.usuario_id = null;
-      }
+      const seleccionUsuario = selectUsuario.value;
 
       await conCarga(btnGuardar, async () => {
+        if (seleccionUsuario === OPCION_CREAR_USUARIO) {
+          const nuevoUsuario = form.usuario.value.trim();
+          const nuevaClave = form.clave.value;
+          const respUsuario = await api.usuarios.crear({
+            usuario: nuevoUsuario,
+            clave: nuevaClave,
+            rol: 'usuario'
+          });
+          if (respUsuario.codigo !== 201) {
+            aplicarErroresCampos(form, respUsuario.datos);
+            const [tipo, texto] = explicarError(respUsuario.codigo, respUsuario.datos);
+            mostrarMensaje(msgForm, tipo, texto);
+            return;
+          }
+          payload.usuario_id = respUsuario.datos.usuario;
+        } else if (seleccionUsuario) {
+          payload.usuario_id = seleccionUsuario;
+        } else if (editando && medicoEditando.usuario_id) {
+          payload.usuario_id = null;
+        }
+
         const { codigo, datos } = editando
           ? await api.medicos.actualizar(medicoEditando.id, payload)
           : await api.medicos.crear(payload);
 
         if (codigo === 201 || codigo === 200) {
           mostrarMensaje(msgForm, 'ok', editando ? 'Médico actualizado.' : 'Médico creado.');
+          await cargarUsuariosSelect('');
           reiniciarFormulario();
           await cargarMedicos();
           return;
@@ -170,4 +242,5 @@ export function renderMedicosPage(contenedor) {
   }
 
   cargarMedicos();
+  cargarUsuariosSelect('');
 }

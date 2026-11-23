@@ -3,6 +3,10 @@ function registrarCitas(app, { citasServicio, usuarioActual }) {
         return res.status(200).json(citasServicio.listar(req.yo));
     });
 
+    app.get('/citas/opciones', usuarioActual, (req, res) => {
+        return res.status(200).json(citasServicio.opciones(req.yo));
+    });
+
     app.post('/citas/comentario', usuarioActual, async (req, res) => {
         const resultado = await citasServicio.analizarComentario(req.body);
         return res.status(200).json(resultado);

@@ -1,4 +1,3 @@
-const { randomUUID } = require('node:crypto');
 const ErrorApi = require('../errors/ErrorApi');
 const { validarDatosCita, validarComentarioCita } = require('../validators/citas');
 const { crearRepositorioCitas } = require('../repositories/citas');
@@ -23,39 +22,96 @@ function crearServicioCitas({ citasRepo, pacientesRepo, medicosRepo, preguntarAL
         return repoCitas.buscarPorIdUsuario(id, usuario.usuario);
     }
 
+    function obtenerMedicoPropio(actor) {
+        if (actor.rol === 'admin') return null;
+        return repoMedicos.obtenerPorUsuario(actor.usuario) ?? null;
+    }
+
     function hayConflicto({ idExcluido = null, medico, horarioInicio, horarioFin }) {
         return repoCitas.buscarConflicto({ idExcluido, medico, horarioInicio, horarioFin });
     }
 
-    function buscarOCrearPaciente(nombre, usuarioId = null) {
-        // Una cuenta común siempre agenda sobre su propio perfil. Esto evita que
-        // el nombre enviado por un cliente apunte a un perfil de otro usuario.
-        if (usuarioId) {
-            const propioId = repoPacientes.buscarIdPorUsuario(usuarioId);
-            if (propioId) return propioId;
-            return repoPacientes.crearBasico({ usuario_id: usuarioId, nombre });
+    function resolverReferenciasExistentes(medico, paciente) {
+        const errores = [];
+        const medicoRegistro = repoMedicos.buscarPorNombre(medico.trim());
+        const pacienteRegistro = repoPacientes.buscarPorNombre(paciente.trim());
+
+        if (!medicoRegistro) {
+            errores.push('medico: debes elegir un médico existente');
         }
-        const existenteId = repoPacientes.buscarIdPorNombre(nombre);
-        return existenteId || repoPacientes.crearBasico({ nombre });
-    }
+        if (!pacienteRegistro) {
+            errores.push('paciente: debes elegir un paciente existente');
+        }
+        if (errores.length > 0) {
+            throw new ErrorApi(422, 'Datos inválidos', errores);
+        }
 
-    function buscarOCrearMedico(nombre) {
-        const existenteId = repoMedicos.buscarIdPorNombre(nombre);
-        if (existenteId) return existenteId;
-        return repoMedicos.crearProvisional(nombre, `MIGRACION-PENDIENTE-API-${randomUUID()}`);
-    }
-
-    function resolverReferencias(medico, paciente, usuarioPaciente = null) {
-        return {
-            medicoId: buscarOCrearMedico(medico.trim()),
-            pacienteId: buscarOCrearPaciente(paciente.trim(), usuarioPaciente)
-        };
+        return { medicoRegistro, pacienteRegistro };
     }
 
     function formatear(cita) {
         if (!cita) return null;
         const { usuario_id, paciente_usuario_id, medico_usuario_id, ...publica } = cita;
         return publica;
+    }
+
+    function opciones(actor) {
+        if (actor.rol === 'admin') {
+            return {
+                tipo_actor: 'admin',
+                puede_crear: true,
+                puede_editar: true,
+                puede_eliminar: true,
+                medico_propio: null,
+                paciente_propio: null,
+                medicos: repoMedicos.listar().map(m => ({
+                    id: m.id,
+                    nombre: m.nombre,
+                    especialidad: m.especialidad
+                })),
+                pacientes: repoPacientes.listar().map(p => ({
+                    id: p.id,
+                    nombre: p.nombre
+                }))
+            };
+        }
+
+        const medicoPropio = obtenerMedicoPropio(actor);
+        if (medicoPropio) {
+            return {
+                tipo_actor: 'medico',
+                puede_crear: true,
+                puede_editar: true,
+                puede_eliminar: false,
+                medico_propio: {
+                    id: medicoPropio.id,
+                    nombre: medicoPropio.nombre,
+                    especialidad: medicoPropio.especialidad
+                },
+                paciente_propio: null,
+                medicos: [{
+                    id: medicoPropio.id,
+                    nombre: medicoPropio.nombre,
+                    especialidad: medicoPropio.especialidad
+                }],
+                pacientes: repoPacientes.listar().map(p => ({
+                    id: p.id,
+                    nombre: p.nombre
+                }))
+            };
+        }
+
+        const pacientePropio = repoPacientes.obtenerPorUsuario(actor.usuario) ?? null;
+        return {
+            tipo_actor: 'paciente',
+            puede_crear: false,
+            puede_editar: false,
+            puede_eliminar: false,
+            medico_propio: null,
+            paciente_propio: pacientePropio ? { id: pacientePropio.id, nombre: pacientePropio.nombre } : null,
+            medicos: [],
+            pacientes: []
+        };
     }
 
     function listar(actor) {
@@ -74,64 +130,15 @@ function crearServicioCitas({ citasRepo, pacientesRepo, medicosRepo, preguntarAL
     }
 
     function crear(body, actor) {
-        const errores = validarDatosCita(body);
-        if (errores.length > 0) {
-            throw new ErrorApi(422, 'Entidad no procesable', errores);
-        }
+        const esAdministrador = actor.rol === 'admin';
+        const medicoPropio = obtenerMedicoPropio(actor);
 
-        const {
-            medico,
-            paciente,
-            horario_inicio,
-            horario_fin,
-            estado
-        } = body;
-
-        if (estado === 'Pendiente') {
-            const conflicto = hayConflicto({
-                medico,
-                horarioInicio: new Date(horario_inicio).toISOString(),
-                horarioFin: new Date(horario_fin).toISOString()
-            });
-
-            if (conflicto) {
-                throw new ErrorApi(
-                    409,
-                    'Conflicto de horario',
-                    [`El médico "${medico}" ya tiene una cita activa asignada para el horario_inicio "${horario_inicio}"`]
-                );
-            }
-        }
-
-        const fechaRegistro = new Date().toISOString();
-        const referencias = resolverReferencias(
-            medico,
-            paciente,
-            actor.rol === 'admin' ? null : actor.usuario
-        );
-
-        const nuevaCita = repoCitas.crear({
-            medico: medico.trim(),
-            paciente: paciente.trim(),
-            horario_inicio,
-            horario_fin,
-            estado,
-            fecha_de_registro: fechaRegistro,
-            usuario_id: actor.usuario,
-            paciente_id: referencias.pacienteId,
-            medico_id: referencias.medicoId
-        });
-
-        return formatear(nuevaCita);
-    }
-
-    function actualizar(id, body, actor) {
-        const citaExistente = buscar(id, actor);
-        if (!citaExistente) {
+        if (!esAdministrador && !medicoPropio) {
             throw new ErrorApi(
-                404,
-                'Cita no encontrada',
-                [`No se encontró la cita con ID ${id} para actualizar`]
+                403,
+                'No permitido',
+                ['Los pacientes solo pueden consultar sus citas'],
+                'FORBIDDEN'
             );
         }
 
@@ -148,10 +155,20 @@ function crearServicioCitas({ citasRepo, pacientesRepo, medicosRepo, preguntarAL
             estado
         } = body;
 
+        const { medicoRegistro, pacienteRegistro } = resolverReferenciasExistentes(medico, paciente);
+
+        if (medicoPropio && medicoRegistro.id !== medicoPropio.id) {
+            throw new ErrorApi(
+                403,
+                'No permitido',
+                ['Un médico solo puede agendar citas para sí mismo'],
+                'FORBIDDEN'
+            );
+        }
+
         if (estado === 'Pendiente') {
             const conflicto = hayConflicto({
-                idExcluido: id,
-                medico,
+                medico: medicoRegistro.nombre,
                 horarioInicio: new Date(horario_inicio).toISOString(),
                 horarioFin: new Date(horario_fin).toISOString()
             });
@@ -160,30 +177,104 @@ function crearServicioCitas({ citasRepo, pacientesRepo, medicosRepo, preguntarAL
                 throw new ErrorApi(
                     409,
                     'Conflicto de horario',
-                    [`El médico "${medico}" ya tiene otra cita activa asignada para el horario_inicio "${horario_inicio}"`]
+                    [`El médico "${medicoRegistro.nombre}" ya tiene una cita activa asignada para el horario_inicio "${horario_inicio}"`]
                 );
             }
         }
 
+        const fechaRegistro = new Date().toISOString();
+
+        const nuevaCita = repoCitas.crear({
+            medico: medicoRegistro.nombre,
+            paciente: pacienteRegistro.nombre,
+            horario_inicio,
+            horario_fin,
+            estado,
+            fecha_de_registro: fechaRegistro,
+            usuario_id: actor.usuario,
+            paciente_id: pacienteRegistro.id,
+            medico_id: medicoRegistro.id
+        });
+
+        return formatear(nuevaCita);
+    }
+
+    function actualizar(id, body, actor) {
+        const citaExistente = buscar(id, actor);
+        if (!citaExistente) {
+            throw new ErrorApi(
+                404,
+                'Cita no encontrada',
+                [`No se encontró la cita con ID ${id} para actualizar`]
+            );
+        }
+
         const esAdministrador = actor.rol === 'admin';
-        const referencias = resolverReferencias(
+        const medicoPropio = obtenerMedicoPropio(actor);
+        const esMedicoDeLaCita = Boolean(medicoPropio && citaExistente.medico_id === medicoPropio.id);
+
+        if (!esAdministrador && !esMedicoDeLaCita) {
+            throw new ErrorApi(
+                403,
+                'No permitido',
+                ['Solo un administrador o el médico asignado puede modificar esta cita'],
+                'FORBIDDEN'
+            );
+        }
+
+        const errores = validarDatosCita(body);
+        if (errores.length > 0) {
+            throw new ErrorApi(422, 'Entidad no procesable', errores);
+        }
+
+        const {
             medico,
             paciente,
-            esAdministrador ? null : actor.usuario
-        );
+            horario_inicio,
+            horario_fin,
+            estado
+        } = body;
+
+        const { medicoRegistro, pacienteRegistro } = resolverReferenciasExistentes(medico, paciente);
+
+        if (medicoPropio && medicoRegistro.id !== medicoPropio.id) {
+            throw new ErrorApi(
+                403,
+                'No permitido',
+                ['Un médico solo puede asignar citas a sí mismo'],
+                'FORBIDDEN'
+            );
+        }
+
+        if (estado === 'Pendiente') {
+            const conflicto = hayConflicto({
+                idExcluido: id,
+                medico: medicoRegistro.nombre,
+                horarioInicio: new Date(horario_inicio).toISOString(),
+                horarioFin: new Date(horario_fin).toISOString()
+            });
+
+            if (conflicto) {
+                throw new ErrorApi(
+                    409,
+                    'Conflicto de horario',
+                    [`El médico "${medicoRegistro.nombre}" ya tiene otra cita activa asignada para el horario_inicio "${horario_inicio}"`]
+                );
+            }
+        }
 
         const citaActualizada = repoCitas.actualizar({
             id,
-            medico: medico.trim(),
-            paciente: paciente.trim(),
-            paciente_id: referencias.pacienteId,
-            medico_id: referencias.medicoId,
+            medico: medicoRegistro.nombre,
+            paciente: pacienteRegistro.nombre,
+            paciente_id: pacienteRegistro.id,
+            medico_id: medicoRegistro.id,
             horario_inicio,
             horario_fin,
             estado,
             fecha_de_registro: citaExistente.fecha_de_registro,
             usuario_id: actor.usuario,
-            soloPropietario: !esAdministrador
+            soloPropietario: false
         });
 
         return formatear(citaActualizada);
@@ -196,6 +287,15 @@ function crearServicioCitas({ citasRepo, pacientesRepo, medicosRepo, preguntarAL
                 404,
                 'Cita no encontrada',
                 [`No se puede eliminar la cita porque el ID ${id} no existe o no te pertenece`]
+            );
+        }
+
+        if (actor.rol !== 'admin' && cita.usuario_id !== actor.usuario) {
+            throw new ErrorApi(
+                403,
+                'No permitido',
+                ['Solo un administrador o quien registró la cita puede eliminarla'],
+                'FORBIDDEN'
             );
         }
 
@@ -231,8 +331,8 @@ function crearServicioCitas({ citasRepo, pacientesRepo, medicosRepo, preguntarAL
     return {
         buscar,
         hayConflicto,
-        resolverReferencias,
         formatear,
+        opciones,
         listar,
         obtener,
         crear,

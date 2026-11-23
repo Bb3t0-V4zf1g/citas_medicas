@@ -1,6 +1,6 @@
 import { api, explicarError } from '../api.js';
 import { esAdmin } from '../auth.js';
-import { mostrarMensaje } from '../components/alert.js';
+import { esc, mostrarMensaje } from '../components/alert.js';
 import {
   limpiarErroresFormulario,
   aplicarErroresCampos,
@@ -9,9 +9,12 @@ import {
 } from '../components/form.js';
 import { renderizarTabla } from '../components/table.js';
 
+const OPCION_CREAR_USUARIO = '__crear__';
+
 export function renderPacientesPage(contenedor) {
   const admin = esAdmin();
-  let pacienteEditandoId = null;
+  let pacienteEditando = null;
+  let usuariosDisponibles = [];
 
   contenedor.innerHTML = `
     <div class="grid-2">
@@ -35,9 +38,22 @@ export function renderPacientesPage(contenedor) {
           <div class="err-campo" data-error-for="fecha_nacimiento"></div>
 
           <div id="grupoUsuarioPaciente" class="${admin ? '' : 'oculto'}">
-            <label for="pacUsuarioId">Usuario vinculado (solo admin, opcional)</label>
-            <input id="pacUsuarioId" name="usuario_id" placeholder="ana">
+            <label for="pacUsuarioId">Cuenta de usuario (solo admin, opcional)</label>
+            <select id="pacUsuarioId" name="usuario_id">
+              <option value="">Sin cuenta vinculada</option>
+              <option value="${OPCION_CREAR_USUARIO}">+ Crear nueva cuenta para este paciente</option>
+            </select>
             <div class="err-campo" data-error-for="usuario_id"></div>
+
+            <div id="bloqueNuevoUsuarioPaciente" class="oculto">
+              <label for="pacNuevoUsuario">Usuario nuevo</label>
+              <input id="pacNuevoUsuario" name="usuario" placeholder="maria.lopez" autocomplete="off">
+              <div class="err-campo" data-error-for="usuario"></div>
+
+              <label for="pacNuevaClave">Contraseña (mínimo 8 caracteres)</label>
+              <input id="pacNuevaClave" name="clave" type="password" placeholder="••••••••" autocomplete="new-password">
+              <div class="err-campo" data-error-for="clave"></div>
+            </div>
           </div>
 
           <div class="fila-acciones">
@@ -61,7 +77,8 @@ export function renderPacientesPage(contenedor) {
 
   const titulo = contenedor.querySelector('#tituloFormPaciente');
   const form = contenedor.querySelector('#formPaciente');
-  const grupoUsuario = contenedor.querySelector('#grupoUsuarioPaciente');
+  const selectUsuario = contenedor.querySelector('#pacUsuarioId');
+  const bloqueNuevoUsuario = contenedor.querySelector('#bloqueNuevoUsuarioPaciente');
   const btnGuardar = contenedor.querySelector('#btnGuardarPaciente');
   const btnCancelar = contenedor.querySelector('#btnCancelarPaciente');
   const msgForm = contenedor.querySelector('#msgPaciente');
@@ -69,27 +86,56 @@ export function renderPacientesPage(contenedor) {
   const tabla = contenedor.querySelector('#tablaPacientes');
   const btnRecargar = contenedor.querySelector('#btnRecargarPacientes');
 
+  function actualizarVisibilidadNuevoUsuario() {
+    if (!bloqueNuevoUsuario || !selectUsuario) return;
+    const creandoNuevo = selectUsuario.value === OPCION_CREAR_USUARIO;
+    bloqueNuevoUsuario.classList.toggle('oculto', !creandoNuevo);
+  }
+
+  function renderizarOpcionesUsuario(seleccionActual = '') {
+    if (!admin || !selectUsuario) return;
+    const opciones = [
+      '<option value="">Sin cuenta vinculada</option>',
+      ...usuariosDisponibles.map(u => (
+        `<option value="${esc(u.usuario)}">${esc(u.usuario)} (${esc(u.rol)})</option>`
+      )),
+      `<option value="${OPCION_CREAR_USUARIO}">+ Crear nueva cuenta para este paciente</option>`
+    ];
+    selectUsuario.innerHTML = opciones.join('');
+    if (seleccionActual) {
+      selectUsuario.value = seleccionActual;
+    }
+    actualizarVisibilidadNuevoUsuario();
+  }
+
+  async function cargarUsuariosSelect(seleccionActual = '') {
+    if (!admin || !selectUsuario) return;
+    const { codigo, datos } = await api.usuarios.listar();
+    if (codigo === 200 && Array.isArray(datos)) {
+      usuariosDisponibles = datos;
+    }
+    renderizarOpcionesUsuario(seleccionActual);
+  }
+
   function reiniciarFormulario() {
-    pacienteEditandoId = null;
+    pacienteEditando = null;
     form.reset();
     limpiarErroresFormulario(form);
+    renderizarOpcionesUsuario('');
     titulo.textContent = 'Nuevo perfil de paciente · POST /pacientes';
     btnGuardar.textContent = 'Guardar';
     btnCancelar.classList.add('oculto');
-    if (admin) {
-      grupoUsuario.classList.remove('oculto');
-    }
   }
 
   function cargarParaEditar(paciente) {
-    pacienteEditandoId = paciente.id;
+    pacienteEditando = paciente;
     limpiarErroresFormulario(form);
     mostrarMensaje(msgForm, '', '');
     form.nombre.value = paciente.nombre || '';
     form.telefono.value = paciente.telefono || '';
     form.correo.value = paciente.correo || '';
     form.fecha_nacimiento.value = paciente.fecha_nacimiento || '';
-    grupoUsuario.classList.add('oculto');
+    renderizarOpcionesUsuario(paciente.usuario_id || '');
     titulo.textContent = `Editar paciente #${paciente.id} · PATCH /pacientes/${paciente.id}`;
     btnGuardar.textContent = 'Actualizar';
     btnCancelar.classList.remove('oculto');
@@ -125,38 +171,66 @@ export function renderPacientesPage(contenedor) {
     });
   }
 
+  if (selectUsuario) {
+    selectUsuario.addEventListener('change', actualizarVisibilidadNuevoUsuario);
+  }
+
   btnCancelar.addEventListener('click', () => {
     reiniciarFormulario();
     mostrarMensaje(msgForm, '', '');
   });
 
-  btnRecargar.addEventListener('click', cargarPacientes);
+  btnRecargar.addEventListener('click', () => {
+    cargarPacientes();
+    cargarUsuariosSelect(selectUsuario ? selectUsuario.value : '');
+  });
 
   form.addEventListener('submit', async ev => {
     ev.preventDefault();
     limpiarErroresFormulario(form);
     mostrarMensaje(msgForm, '', '');
 
-    const editando = pacienteEditandoId !== null;
-    const base = {
+    const editando = pacienteEditando !== null;
+    const payload = omitirVacios({
       nombre: form.nombre.value,
       telefono: form.telefono.value,
       correo: form.correo.value,
       fecha_nacimiento: form.fecha_nacimiento.value
-    };
-    if (!editando && admin) {
-      base.usuario_id = form.usuario_id.value;
-    }
+    });
 
-    const payload = omitirVacios(base);
+    const seleccionUsuario = admin && selectUsuario ? selectUsuario.value : '';
 
     await conCarga(btnGuardar, async () => {
+      if (admin) {
+        if (seleccionUsuario === OPCION_CREAR_USUARIO) {
+          const nuevoUsuario = form.usuario.value.trim();
+          const nuevaClave = form.clave.value;
+          const respUsuario = await api.usuarios.crear({
+            usuario: nuevoUsuario,
+            clave: nuevaClave,
+            rol: 'usuario'
+          });
+          if (respUsuario.codigo !== 201) {
+            aplicarErroresCampos(form, respUsuario.datos);
+            const [tipo, texto] = explicarError(respUsuario.codigo, respUsuario.datos);
+            mostrarMensaje(msgForm, tipo, texto);
+            return;
+          }
+          payload.usuario_id = respUsuario.datos.usuario;
+        } else if (seleccionUsuario) {
+          payload.usuario_id = seleccionUsuario;
+        } else if (!editando || pacienteEditando.usuario_id) {
+          payload.usuario_id = null;
+        }
+      }
+
       const { codigo, datos } = editando
-        ? await api.pacientes.actualizar(pacienteEditandoId, payload)
+        ? await api.pacientes.actualizar(pacienteEditando.id, payload)
         : await api.pacientes.crear(payload);
 
       if (codigo === 201 || codigo === 200) {
         mostrarMensaje(msgForm, 'ok', editando ? 'Perfil actualizado.' : 'Perfil creado.');
+        await cargarUsuariosSelect('');
         reiniciarFormulario();
         await cargarPacientes();
         return;
@@ -169,4 +243,5 @@ export function renderPacientesPage(contenedor) {
   });
 
   cargarPacientes();
+  cargarUsuariosSelect('');
 }

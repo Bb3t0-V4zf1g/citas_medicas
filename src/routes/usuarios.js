@@ -13,6 +13,11 @@ function registrarUsuarios(app, { usuariosServicio, usuarioActual, soloAdmin }) 
         return res.json(usuariosServicio.listar());
     });
 
+    app.post('/usuarios', usuarioActual, (req, res) => {
+        if (!soloAdmin(req, res)) return;
+        return res.status(201).json(usuariosServicio.crear(req.body));
+    });
+
     app.patch('/usuarios/:usuario', usuarioActual, (req, res) => {
         if (!soloAdmin(req, res)) return;
         return res.json(usuariosServicio.actualizar(req.params.usuario, req.body));

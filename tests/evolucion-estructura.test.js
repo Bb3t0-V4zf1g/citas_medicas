@@ -17,6 +17,7 @@ const citasCreadas = [];
 const pacientesCreados = [];
 const medicosCreados = [];
 const consultoriosCreados = [];
+const usuariosCreados = [];
 let pacienteAnaPrevio = null;
 
 before(async () => {
@@ -45,6 +46,9 @@ after(async () => {
             db.prepare(
                 'DELETE FROM consultorios WHERE id = ? AND NOT EXISTS (SELECT 1 FROM citas WHERE consultorio_id = consultorios.id)'
             ).run(id);
+        }
+        for (const usuario of usuariosCreados) {
+            db.prepare('DELETE FROM usuarios WHERE usuario = ?').run(usuario);
         }
         if (!pacienteAnaPrevio) {
             db.prepare(
@@ -88,7 +92,7 @@ function recolectarArchivos(carpeta, extension) {
 test('citas: ciclo CRUD completo, conflictos 409, validaciones 422 y aislamiento por propietario', async () => {
     const authAdmin = await iniciarSesion('admin', 'admin12345');
     const authAna = await iniciarSesion('ana', 'ana12345');
-    const authBeto = await iniciarSesion('beto', 'beto12345');
+    const authJuan = await iniciarSesion('juan', 'juan12345');
     const sufijo = randomUUID().slice(0, 8);
 
     // Validación 422 al crear cita inválida
@@ -108,12 +112,64 @@ test('citas: ciclo CRUD completo, conflictos 409, validaciones 422 y aislamiento
     assert.equal(invalida.contenido.error, 'Entidad no procesable');
     assert.ok(Array.isArray(invalida.contenido.detalles) && invalida.contenido.detalles.length >= 5);
 
+    // Crear médico y paciente reales antes de agendar
+    const medicoPrueba = await solicitud('/medicos', {
+        method: 'POST',
+        headers: { ...authAdmin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            nombre: `Dra. Prueba ${sufijo}`,
+            cedula_profesional: `CED-CITA-${sufijo}`,
+            especialidad: 'Medicina General'
+        })
+    });
+    assert.equal(medicoPrueba.respuesta.status, 201);
+    medicosCreados.push(medicoPrueba.contenido.id);
+
+    const pacientePrueba = await solicitud('/pacientes', {
+        method: 'POST',
+        headers: { ...authAdmin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            nombre: `Paciente Prueba ${sufijo}`,
+            usuario_id: null
+        })
+    });
+    assert.equal(pacientePrueba.respuesta.status, 201);
+    pacientesCreados.push(pacientePrueba.contenido.id);
+
+    // Rechaza 422 si el médico o paciente no existen
+    const inexistentes = await solicitud('/citas', {
+        method: 'POST',
+        headers: { ...authAdmin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            medico: `Dr. Fantasma ${sufijo}`,
+            paciente: `Paciente Fantasma ${sufijo}`,
+            horario_inicio: '2027-05-10T10:00:00Z',
+            horario_fin: '2027-05-10T10:30:00Z',
+            estado: 'Pendiente'
+        })
+    });
+    assert.equal(inexistentes.respuesta.status, 422);
+
+    // Rechaza 422 si los horarios no están en intervalos de 30 minutos
+    const horarioNoValido = await solicitud('/citas', {
+        method: 'POST',
+        headers: { ...authAdmin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            medico: medicoPrueba.contenido.nombre,
+            paciente: pacientePrueba.contenido.nombre,
+            horario_inicio: '2027-05-10T10:15:00Z',
+            horario_fin: '2027-05-10T10:45:00Z',
+            estado: 'Pendiente'
+        })
+    });
+    assert.equal(horarioNoValido.respuesta.status, 422);
+
     // Crear cita válida como admin
     const payload = {
-        medico: `Dra. Prueba ${sufijo}`,
-        paciente: `Paciente Prueba ${sufijo}`,
+        medico: medicoPrueba.contenido.nombre,
+        paciente: pacientePrueba.contenido.nombre,
         horario_inicio: '2027-05-10T10:00:00Z',
-        horario_fin: '2027-05-10T10:30:00Z',
+        horario_fin: '2027-05-10T11:00:00Z',
         estado: 'Pendiente'
     };
     const creada = await solicitud('/citas', {
@@ -124,18 +180,15 @@ test('citas: ciclo CRUD completo, conflictos 409, validaciones 422 y aislamiento
     assert.equal(creada.respuesta.status, 201);
     assert.ok(creada.contenido.id);
     citasCreadas.push(creada.contenido.id);
-    if (creada.contenido.paciente_id) pacientesCreados.push(creada.contenido.paciente_id);
-    if (creada.contenido.medico_id) medicosCreados.push(creada.contenido.medico_id);
 
-    // Conflicto 409 por traslape del mismo médico en cita Pendiente
+    // Conflicto 409 por traslape del mismo médico en cita Pendiente (en bloques de 30 min)
     const conflicto = await solicitud('/citas', {
         method: 'POST',
         headers: { ...authAdmin, 'Content-Type': 'application/json' },
         body: JSON.stringify({
             ...payload,
-            paciente: `Otro Paciente ${sufijo}`,
-            horario_inicio: '2027-05-10T10:15:00Z',
-            horario_fin: '2027-05-10T10:45:00Z'
+            horario_inicio: '2027-05-10T10:30:00Z',
+            horario_fin: '2027-05-10T11:30:00Z'
         })
     });
     assert.equal(conflicto.respuesta.status, 409);
@@ -154,13 +207,41 @@ test('citas: ciclo CRUD completo, conflictos 409, validaciones 422 y aislamiento
     assert.equal(actualizada.contenido.estado, 'Cancelado');
     assert.equal(actualizada.contenido.fecha_de_registro, creada.contenido.fecha_de_registro);
 
-    // Aislamiento entre usuarios comunes (ana crea, beto no accede)
+    // Médico (ana = Dra. Ana Torres) NO puede agendar para otro médico (403)
+    const citaOtroMedico = await solicitud('/citas', {
+        method: 'POST',
+        headers: { ...authAna, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            medico: medicoPrueba.contenido.nombre,
+            paciente: pacientePrueba.contenido.nombre,
+            horario_inicio: '2027-05-11T09:00:00Z',
+            horario_fin: '2027-05-11T09:30:00Z',
+            estado: 'Pendiente'
+        })
+    });
+    assert.equal(citaOtroMedico.respuesta.status, 403);
+
+    // Paciente (juan) NO puede crear citas (403)
+    const citaDePaciente = await solicitud('/citas', {
+        method: 'POST',
+        headers: { ...authJuan, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            medico: 'Dra. Ana Torres',
+            paciente: 'Juan Perez',
+            horario_inicio: '2027-05-11T09:00:00Z',
+            horario_fin: '2027-05-11T09:30:00Z',
+            estado: 'Pendiente'
+        })
+    });
+    assert.equal(citaDePaciente.respuesta.status, 403);
+
+    // Médico (ana) crea cita para sí misma; juan no accede (404)
     const citaAna = await solicitud('/citas', {
         method: 'POST',
         headers: { ...authAna, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            medico: `Dra. Ana ${sufijo}`,
-            paciente: `Ana Paciente ${sufijo}`,
+            medico: 'Dra. Ana Torres',
+            paciente: pacientePrueba.contenido.nombre,
             horario_inicio: '2027-05-11T09:00:00Z',
             horario_fin: '2027-05-11T09:30:00Z',
             estado: 'Pendiente'
@@ -168,10 +249,45 @@ test('citas: ciclo CRUD completo, conflictos 409, validaciones 422 y aislamiento
     });
     assert.equal(citaAna.respuesta.status, 201);
     citasCreadas.push(citaAna.contenido.id);
-    if (citaAna.contenido.medico_id) medicosCreados.push(citaAna.contenido.medico_id);
 
-    const accesoBeto = await solicitud(`/citas/${citaAna.contenido.id}`, { headers: authBeto });
-    assert.equal(accesoBeto.respuesta.status, 404);
+    const accesoJuan = await solicitud(`/citas/${citaAna.contenido.id}`, { headers: authJuan });
+    assert.equal(accesoJuan.respuesta.status, 404);
+
+    // Médico (ana) puede editar y marcar como Completado una cita creada por admin para ella
+    const citaAdminParaAna = await solicitud('/citas', {
+        method: 'POST',
+        headers: { ...authAdmin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            medico: 'Dra. Ana Torres',
+            paciente: pacientePrueba.contenido.nombre,
+            horario_inicio: '2027-05-12T09:00:00Z',
+            horario_fin: '2027-05-12T09:30:00Z',
+            estado: 'Pendiente'
+        })
+    });
+    assert.equal(citaAdminParaAna.respuesta.status, 201);
+    citasCreadas.push(citaAdminParaAna.contenido.id);
+
+    const completadaPorAna = await solicitud(`/citas/${citaAdminParaAna.contenido.id}`, {
+        method: 'PUT',
+        headers: { ...authAna, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            medico: 'Dra. Ana Torres',
+            paciente: pacientePrueba.contenido.nombre,
+            horario_inicio: '2027-05-12T09:00:00Z',
+            horario_fin: '2027-05-12T09:30:00Z',
+            estado: 'Completado'
+        })
+    });
+    assert.equal(completadaPorAna.respuesta.status, 200);
+    assert.equal(completadaPorAna.contenido.estado, 'Completado');
+
+    // Pero ana no puede borrar la cita registrada por admin (403)
+    const borrarCitaAdmin = await solicitud(`/citas/${citaAdminParaAna.contenido.id}`, {
+        method: 'DELETE',
+        headers: authAna
+    });
+    assert.equal(borrarCitaAdmin.respuesta.status, 403);
 
     // Eliminar citas
     const borrada = await solicitud(`/citas/${creada.contenido.id}`, {
@@ -219,6 +335,32 @@ test('recursos de dominio y catálogos: validaciones, permisos y CRUD', async ()
         body: JSON.stringify({ rol: 'usuario' })
     });
     assert.equal(usuarioInexistente.respuesta.status, 404);
+
+    // Crear usuario desde admin (201), duplicado (409) y sin permiso (403)
+    const nuevoUsuario = `med_${sufijo}`;
+    const altaUsuarioDenegada = await solicitud('/usuarios', {
+        method: 'POST',
+        headers: { ...authAna, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuario: nuevoUsuario, clave: 'claveSegura123', rol: 'usuario' })
+    });
+    assert.equal(altaUsuarioDenegada.respuesta.status, 403);
+
+    const altaUsuario = await solicitud('/usuarios', {
+        method: 'POST',
+        headers: { ...authAdmin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuario: nuevoUsuario, clave: 'claveSegura123', rol: 'usuario' })
+    });
+    assert.equal(altaUsuario.respuesta.status, 201);
+    assert.equal(altaUsuario.contenido.usuario, nuevoUsuario);
+    assert.equal('clave_hash' in altaUsuario.contenido, false);
+    usuariosCreados.push(nuevoUsuario);
+
+    const altaUsuarioDuplicado = await solicitud('/usuarios', {
+        method: 'POST',
+        headers: { ...authAdmin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuario: nuevoUsuario, clave: 'claveSegura123', rol: 'usuario' })
+    });
+    assert.equal(altaUsuarioDuplicado.respuesta.status, 409);
 
     // Pacientes: crear sin usuario_id (admin crea uno sin cuenta vinculada), validar 422 y 403
     const pacienteInvalido = await solicitud('/pacientes', {

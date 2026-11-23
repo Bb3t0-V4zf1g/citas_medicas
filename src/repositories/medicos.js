@@ -9,9 +9,22 @@ function crearRepositorioMedicos({ db }) {
         return db.prepare('SELECT * FROM medicos WHERE id = ?').get(id);
     }
 
+    function buscarPorNombre(nombre) {
+        return db.prepare('SELECT * FROM medicos WHERE LOWER(nombre) = LOWER(?) LIMIT 1').get(nombre);
+    }
+
     function buscarIdPorNombre(nombre) {
-        const existente = db.prepare('SELECT id FROM medicos WHERE LOWER(nombre) = LOWER(?) LIMIT 1').get(nombre);
+        const existente = buscarPorNombre(nombre);
         return existente ? existente.id : null;
+    }
+
+    function obtenerPorUsuario(usuarioId) {
+        return db.prepare('SELECT * FROM medicos WHERE usuario_id = ? LIMIT 1').get(usuarioId);
+    }
+
+    function buscarIdPorUsuario(usuarioId) {
+        const propio = obtenerPorUsuario(usuarioId);
+        return propio ? propio.id : null;
     }
 
     function crear(datos) {
@@ -34,7 +47,10 @@ function crearRepositorioMedicos({ db }) {
     return {
         listar,
         obtenerPorId,
+        buscarPorNombre,
         buscarIdPorNombre,
+        obtenerPorUsuario,
+        buscarIdPorUsuario,
         crear,
         crearProvisional,
         actualizar

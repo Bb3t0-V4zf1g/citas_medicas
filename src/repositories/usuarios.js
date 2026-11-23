@@ -28,6 +28,11 @@ function crearRepositorioUsuarios({ db }) {
         return db.prepare('SELECT usuario, rol, activo FROM usuarios ORDER BY usuario').all();
     }
 
+    function crear({ usuario, clave_hash, rol }) {
+        db.prepare('INSERT INTO usuarios (usuario, clave_hash, rol) VALUES (?, ?, ?)').run(usuario, clave_hash, rol);
+        return obtenerPorUsuario(usuario);
+    }
+
     function actualizarRolOEstado(usuario, { rol, activo }) {
         db.prepare(
             'UPDATE usuarios SET rol = COALESCE(?, rol), activo = COALESCE(?, activo), token_version = token_version + 1 WHERE usuario = ?'
@@ -42,6 +47,7 @@ function crearRepositorioUsuarios({ db }) {
         obtenerClaveHash,
         actualizarClave,
         listar,
+        crear,
         actualizarRolOEstado
     };
 }
