@@ -224,9 +224,9 @@ Si la clínica emitiera facturas fiscales por las consultas médicas (o validara
 
 | Integrante | Qué hizo |
 |---|---|
-| Alberto Vazquez Figueroa       | [COMPLETAR: piezas o módulos trabajados] |
+| Alberto Vazquez Figueroa       | Ayudé en establecer las reglas de lógica de negocio, desarrollar los endpoints del recurso principal "citas", así como el contrato, realicé pruebas en la base de datos y correcciones en la pull request de mi compañero, implementé el diseño simple del frontend para pruebas con la API, permisos y persistencia de los datos, verifiqué cada función y elementos de cada versión del proyecto. |
 | Jesus Eduardo Lazo Mora | Ayudé en la persistencia en SQLite y contrato OpenAPI (/docs y openapi.yaml), autenticación JWT y control de acceso por roles/dueños, integración externa con Gemini (502/503/504), configuración de CORS, reestructura modular del backend y frontend, recursos adicionales (usuarios, pacientes, medicos, consultorios) y una pequeña suite de test. |
 
-**Alberto Vazquez Figueroa:** [COMPLETAR: ¿qué pieza te costó más y por qué? ¿Qué harías distinto si este proyecto fuera de una empresa?]
+**Alberto Vazquez Figueroa:** ¿qué pieza te costó más y por qué? se me complicó implementar cada vez más funciones y características al proyecto, primero debido a que los registros que ya tenía la base de datos en versiones anteriores no nos permitian modificar tanto la base de datos así como no seguían la lógica nueva en cada implementación, también se me dificultó la implementación de JWT, y como actúa con CORS. ¿Qué harías distinto si este proyecto fuera de una empresa? cambiar de SQLite a MySQL o PostgreSQL, la implementación de la nube sería también algo muy importante. Un mejor diseño de la interfaz y mejorar o adaptar a lógica como por ejemplo, un rol de recepcionista o médico también.
 
 **Jesus Eduardo Lazo Mora:** ¿qué pieza te costó más y por qué? me costó más separar las responsabilidades (routes, services, repositories, validators) y evolucionar la base de datos con pacientes, medicos y consultorios sin romper las citas anteriores. ¿Qué harías distinto si este proyecto fuera de una empresa? cambiar SQLite por PostgreSQL con migraciones versionadas para poder correr varias instancias de la API en paralelo. 
